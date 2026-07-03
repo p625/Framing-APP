@@ -96,9 +96,12 @@ export function FramingApp() {
               customFrameFile={framing.customFrameFile}
               customFrameTextureUrl={framing.customFrameTextureUrl}
               frameSampleMode={framing.frameSampleMode}
+              frameCornerCalibration={framing.frameCornerCalibration}
               textureScale={framing.textureScale}
               onCustomFrameSelect={framing.setCustomFrameFile}
               onFrameSampleModeChange={framing.setFrameSampleMode}
+              onFrameCornerCalibrationChange={framing.setFrameCornerCalibration}
+              onResetFrameCornerCalibration={framing.resetFrameCornerCalibration}
               onTextureScaleChange={framing.setTextureScale}
             />
           </WorkflowSection>
@@ -129,6 +132,7 @@ export function FramingApp() {
             frame={selectedFrame}
             customFrameTextureUrl={framing.customFrameTextureUrl}
             frameSampleMode={frameSampleMode}
+            frameCornerCalibration={framing.frameCornerCalibration}
             frameWidthCm={framing.frameWidthCm}
             textureScale={framing.textureScale}
             matSettings={framing.matSettings}

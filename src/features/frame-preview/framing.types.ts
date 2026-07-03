@@ -62,6 +62,7 @@ export interface FramingState {
   customFrameTextureUrl: string | null;
   customFrameFile: File | null;
   frameSampleMode: FrameSampleMode;
+  frameCornerCalibration: FrameCornerCalibration | null;
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
@@ -79,6 +80,8 @@ export interface FramingActions {
   setSelectedFrameId: (id: string | null) => void;
   setCustomFrameFile: (file: File | null) => void;
   setFrameSampleMode: (mode: FrameSampleMode) => void;
+  setFrameCornerCalibration: (calibration: FrameCornerCalibration) => void;
+  resetFrameCornerCalibration: () => void;
   setFrameWidthCm: (width: number) => void;
   setTextureScale: (scale: number) => void;
   setMatSettings: (settings: Partial<MatSettings>) => void;
@@ -112,6 +115,20 @@ export interface Point {
   y: number;
 }
 
+export interface NormalizedRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface FrameCornerCalibration {
+  innerCorner: Point;
+  outerCorner: Point;
+  horizontalStrip: NormalizedRect;
+  verticalStrip: NormalizedRect;
+}
+
 export const DEFAULT_CROP_SETTINGS: CropSettings = {
   crop: { x: 0, y: 0 },
   zoom: 1,
@@ -132,6 +149,13 @@ export const DEFAULT_PERSPECTIVE_CORNERS: PerspectiveCorners = {
   topRight: { x: 1, y: 0 },
   bottomRight: { x: 1, y: 1 },
   bottomLeft: { x: 0, y: 1 },
+};
+
+export const DEFAULT_FRAME_CORNER_CALIBRATION: FrameCornerCalibration = {
+  innerCorner: { x: 0.58, y: 0.58 },
+  outerCorner: { x: 0.08, y: 0.08 },
+  horizontalStrip: { x: 0.12, y: 0.44, width: 0.5, height: 0.08 },
+  verticalStrip: { x: 0.44, y: 0.12, width: 0.08, height: 0.5 },
 };
 
 export const MAT_COLOR_PRESETS = [

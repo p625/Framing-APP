@@ -1,10 +1,16 @@
 import type {
   CanvasSize,
+  FrameCornerCalibration,
   FrameSampleMode,
   FramedLayout,
   MatSettings,
   Point,
 } from "../framing.types";
+import {
+  denormalizeRect,
+  getCalibratedCornerSource,
+  isFrameCornerCalibrationComplete,
+} from "../utils/frameCalibration";
 
 const BACKGROUND_COLOR = "#e8e8ec";
 const PLACEHOLDER_ART_COLOR = "#fafafa";
@@ -21,6 +27,7 @@ export interface DrawFramedArtworkOptions {
   frameFallbackColor: string;
   frameTextureImage: HTMLImageElement | null;
   frameSampleMode: FrameSampleMode;
+  frameCornerCalibration: FrameCornerCalibration | null;
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
@@ -303,6 +310,114 @@ function drawRailStrip(
   ctx.drawImage(image, sourceX, sourceY, sourceW, sourceH, x, y, width, height);
 }
 
+function drawCalibratedCornerSampleFrame(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+  cornerImage: HTMLImageElement,
+  calibration: FrameCornerCalibration,
+  fallbackColor: string,
+): void {
+  const rails = getFrameRails(layout);
+  const { offsetX: ox, offsetY: oy, totalPxW, totalPxH, framePxH, framePxV } =
+    layout;
+  const outerRight = ox + totalPxW;
+  const outerBottom = oy + totalPxH;
+  const cornerW = Math.max(framePxH * 2.2, 8);
+  const cornerH = Math.max(framePxV * 2.2, 8);
+  const imgW = cornerImage.naturalWidth;
+  const imgH = cornerImage.naturalHeight;
+  const horizontalStrip = denormalizeRect(
+    calibration.horizontalStrip,
+    imgW,
+    imgH,
+  );
+  const verticalStrip = denormalizeRect(calibration.verticalStrip, imgW, imgH);
+  const cornerSource = getCalibratedCornerSource(calibration, imgW, imgH);
+
+  for (const rail of rails) {
+    fillRailSolid(ctx, rail, fallbackColor);
+  }
+
+  const topStripY = oy;
+  const bottomStripY = outerBottom - framePxV;
+  const leftStripX = ox;
+  const rightStripX = outerRight - framePxH;
+
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    ox + cornerW,
+    topStripY,
+    totalPxW - cornerW * 2,
+    framePxV,
+    horizontalStrip.x,
+    horizontalStrip.y,
+    horizontalStrip.width,
+    horizontalStrip.height,
+  );
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    ox + cornerW,
+    bottomStripY,
+    totalPxW - cornerW * 2,
+    framePxV,
+    horizontalStrip.x,
+    horizontalStrip.y,
+    horizontalStrip.width,
+    horizontalStrip.height,
+  );
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    leftStripX,
+    oy + cornerH,
+    framePxH,
+    totalPxH - cornerH * 2,
+    verticalStrip.x,
+    verticalStrip.y,
+    verticalStrip.width,
+    verticalStrip.height,
+  );
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    rightStripX,
+    oy + cornerH,
+    framePxH,
+    totalPxH - cornerH * 2,
+    verticalStrip.x,
+    verticalStrip.y,
+    verticalStrip.width,
+    verticalStrip.height,
+  );
+
+  const patches = [
+    { x: ox, y: oy, flipX: false, flipY: false },
+    { x: outerRight - cornerW, y: oy, flipX: true, flipY: false },
+    { x: outerRight - cornerW, y: outerBottom - cornerH, flipX: true, flipY: true },
+    { x: ox, y: outerBottom - cornerH, flipX: false, flipY: true },
+  ];
+
+  for (const patch of patches) {
+    ctx.save();
+    ctx.translate(patch.x + cornerW / 2, patch.y + cornerH / 2);
+    ctx.scale(patch.flipX ? -1 : 1, patch.flipY ? -1 : 1);
+    ctx.drawImage(
+      cornerImage,
+      cornerSource.x,
+      cornerSource.y,
+      cornerSource.width,
+      cornerSource.height,
+      -cornerW / 2,
+      -cornerH / 2,
+      cornerW,
+      cornerH,
+    );
+    ctx.restore();
+  }
+}
+
 function drawCornerSampleFrame(
   ctx: CanvasRenderingContext2D,
   layout: FramedLayout,
@@ -538,6 +653,7 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     frameFallbackColor,
     frameTextureImage,
     frameSampleMode,
+    frameCornerCalibration,
     frameWidthCm,
     textureScale,
     matSettings,
@@ -559,7 +675,20 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
   drawFrameShadow(ctx, layout, frameFallbackColor);
 
   if (frameSampleMode === "corner" && frameTextureImage) {
-    drawCornerSampleFrame(ctx, layout, frameTextureImage, frameFallbackColor);
+    if (
+      frameCornerCalibration &&
+      isFrameCornerCalibrationComplete(frameCornerCalibration)
+    ) {
+      drawCalibratedCornerSampleFrame(
+        ctx,
+        layout,
+        frameTextureImage,
+        frameCornerCalibration,
+        frameFallbackColor,
+      );
+    } else {
+      drawCornerSampleFrame(ctx, layout, frameTextureImage, frameFallbackColor);
+    }
   } else {
     const frameFill = createFrameFill(
       ctx,

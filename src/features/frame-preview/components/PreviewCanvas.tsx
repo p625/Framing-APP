@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   CanvasSize,
+  FrameCornerCalibration,
   FrameDefinition,
   FrameSampleMode,
   MatSettings,
@@ -20,6 +21,7 @@ interface PreviewCanvasProps {
   frame: FrameDefinition | null;
   customFrameTextureUrl: string | null;
   frameSampleMode: FrameSampleMode;
+  frameCornerCalibration: FrameCornerCalibration | null;
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
@@ -65,6 +67,7 @@ export function PreviewCanvas({
   frame,
   customFrameTextureUrl,
   frameSampleMode,
+  frameCornerCalibration,
   frameWidthCm,
   textureScale,
   matSettings,
@@ -100,6 +103,7 @@ export function PreviewCanvas({
       frameFallbackColor,
       frameTextureImage,
       frameSampleMode,
+      frameCornerCalibration,
       frameWidthCm,
       textureScale,
       matSettings,
@@ -110,6 +114,7 @@ export function PreviewCanvas({
     frameFallbackColor,
     frameTextureImage,
     frameSampleMode,
+    frameCornerCalibration,
     frameWidthCm,
     textureScale,
     matSettings,

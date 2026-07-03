@@ -9,6 +9,14 @@ import {
   imageNormalizedToContainer,
   type ImageLayout,
 } from "../utils/imageLayout";
+import {
+  applyWheelZoom,
+  clampZoom,
+  computePanForZoomAtPoint,
+  EDITOR_MAX_ZOOM,
+  EDITOR_MIN_ZOOM,
+  EDITOR_ZOOM_STEP,
+} from "../utils/zoomPan";
 
 const HANDLE_KEYS = [
   "topLeft",
@@ -26,9 +34,9 @@ const HANDLE_LABELS: Record<HandleKey, string> = {
   bottomLeft: "Bottom left",
 };
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 4;
-const ZOOM_STEP = 0.25;
+const MIN_ZOOM = EDITOR_MIN_ZOOM;
+const MAX_ZOOM = EDITOR_MAX_ZOOM;
+const ZOOM_STEP = EDITOR_ZOOM_STEP;
 
 interface PerspectiveEditorProps {
   artworkPreviewUrl: string | null;
@@ -187,8 +195,61 @@ export function PerspectiveEditor({
     };
   }, [isPanning]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const localY = event.clientY - rect.top;
+
+      setZoom((currentZoom) => {
+        const result = applyWheelZoom(
+          currentZoom,
+          event.deltaY,
+          localX,
+          localY,
+          container.clientWidth,
+          container.clientHeight,
+          pan.x,
+          pan.y,
+        );
+        setPan({ x: result.panX, y: result.panY });
+        return result.zoom;
+      });
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [pan.x, pan.y]);
+
+  const applyZoomAtPoint = useCallback(
+    (nextZoom: number, localX: number, localY: number) => {
+      const clamped = clampZoom(nextZoom);
+      setZoom((oldZoom) => {
+        setPan((oldPan) =>
+          computePanForZoomAtPoint(
+            localX,
+            localY,
+            containerSize.width,
+            containerSize.height,
+            oldZoom,
+            clamped,
+            oldPan.x,
+            oldPan.y,
+          ),
+        );
+        return clamped;
+      });
+    },
+    [containerSize.height, containerSize.width],
+  );
+
   const handleZoomChange = (nextZoom: number) => {
-    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
+    applyZoomAtPoint(nextZoom, containerSize.width / 2, containerSize.height / 2);
   };
 
   const resetView = () => {
@@ -347,8 +408,8 @@ export function PerspectiveEditor({
       </div>
 
       <p className="text-xs text-zinc-500">
-        Drag corners to the artwork edges. Zoom and drag the background to pan for
-        precise placement.
+        Drag corners to the artwork edges. Scroll to zoom at the pointer, use the
+        slider or drag the background to pan for precise placement.
       </p>
 
       <div className="flex gap-2">

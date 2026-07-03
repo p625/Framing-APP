@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_CROP_SETTINGS,
+  DEFAULT_FRAME_CORNER_CALIBRATION,
   DEFAULT_MAT_SETTINGS,
   DEFAULT_PERSPECTIVE_CORNERS,
   DEFAULT_TEXTURE_SCALE,
   type CanvasSize,
   type CropSettings,
+  type FrameCornerCalibration,
   type FrameSampleMode,
   type MatSettings,
   type PerspectiveCorners,
@@ -39,6 +41,8 @@ export function useFramingState(): UseFramingStateReturn {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>("oak");
   const [customFrameFile, setCustomFrameFileState] = useState<File | null>(null);
   const [frameSampleMode, setFrameSampleMode] = useState<FrameSampleMode>("texture");
+  const [frameCornerCalibration, setFrameCornerCalibrationState] =
+    useState<FrameCornerCalibration | null>(null);
   const [frameWidthCm, setFrameWidthCm] = useState(3);
   const [textureScale, setTextureScale] = useState<number>(DEFAULT_TEXTURE_SCALE);
   const [cropEditorKey, setCropEditorKey] = useState(0);
@@ -175,7 +179,21 @@ export function useFramingState(): UseFramingStateReturn {
     setCustomFrameFileState(file);
     if (file) {
       setSelectedFrameId(null);
+      setFrameCornerCalibrationState(DEFAULT_FRAME_CORNER_CALIBRATION);
+    } else {
+      setFrameCornerCalibrationState(null);
     }
+  }, []);
+
+  const setFrameCornerCalibration = useCallback(
+    (calibration: FrameCornerCalibration) => {
+      setFrameCornerCalibrationState(calibration);
+    },
+    [],
+  );
+
+  const resetFrameCornerCalibration = useCallback(() => {
+    setFrameCornerCalibrationState(DEFAULT_FRAME_CORNER_CALIBRATION);
   }, []);
 
   const setSelectedFrameIdWithMode = useCallback((id: string | null) => {
@@ -200,6 +218,7 @@ export function useFramingState(): UseFramingStateReturn {
     customFrameTextureUrl,
     customFrameFile,
     frameSampleMode,
+    frameCornerCalibration,
     frameWidthCm,
     textureScale,
     matSettings,
@@ -214,6 +233,8 @@ export function useFramingState(): UseFramingStateReturn {
     setSelectedFrameId: setSelectedFrameIdWithMode,
     setCustomFrameFile,
     setFrameSampleMode,
+    setFrameCornerCalibration,
+    resetFrameCornerCalibration,
     setFrameWidthCm,
     setTextureScale,
     setMatSettings,

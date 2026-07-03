@@ -1,18 +1,25 @@
 "use client";
 
-import type { FrameSampleMode } from "../framing.types";
+import type { FrameCornerCalibration, FrameSampleMode } from "../framing.types";
 import {
   TEXTURE_SCALE_PRESETS,
   type TextureScalePreset,
 } from "../framing.types";
+import {
+  FrameCornerCalibrationEditor,
+  getCalibrationOrDefault,
+} from "./FrameCornerCalibrationEditor";
 
 interface FrameUploaderProps {
   customFrameFile: File | null;
   customFrameTextureUrl: string | null;
   frameSampleMode: FrameSampleMode;
+  frameCornerCalibration: FrameCornerCalibration | null;
   textureScale: number;
   onCustomFrameSelect: (file: File | null) => void;
   onFrameSampleModeChange: (mode: FrameSampleMode) => void;
+  onFrameCornerCalibrationChange: (calibration: FrameCornerCalibration) => void;
+  onResetFrameCornerCalibration: () => void;
   onTextureScaleChange: (scale: number) => void;
 }
 
@@ -26,9 +33,12 @@ export function FrameUploader({
   customFrameFile,
   customFrameTextureUrl,
   frameSampleMode,
+  frameCornerCalibration,
   textureScale,
   onCustomFrameSelect,
   onFrameSampleModeChange,
+  onFrameCornerCalibrationChange,
+  onResetFrameCornerCalibration,
   onTextureScaleChange,
 }: FrameUploaderProps) {
   const activePreset = (
@@ -159,6 +169,13 @@ export function FrameUploader({
             aria-label="Texture repeat scale"
           />
         </div>
+      ) : customFrameTextureUrl ? (
+        <FrameCornerCalibrationEditor
+          imageUrl={customFrameTextureUrl}
+          calibration={getCalibrationOrDefault(frameCornerCalibration)}
+          onCalibrationChange={onFrameCornerCalibrationChange}
+          onReset={onResetFrameCornerCalibration}
+        />
       ) : null}
     </div>
   );

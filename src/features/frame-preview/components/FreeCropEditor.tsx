@@ -9,6 +9,14 @@ import {
   imageNormalizedToContainer,
   type ImageLayout,
 } from "../utils/imageLayout";
+import {
+  applyWheelZoom,
+  clampZoom,
+  computePanForZoomAtPoint,
+  EDITOR_MAX_ZOOM,
+  EDITOR_MIN_ZOOM,
+  EDITOR_ZOOM_STEP,
+} from "../utils/zoomPan";
 
 type DragMode =
   | "move"
@@ -74,11 +82,17 @@ export function FreeCropEditor({
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
   const [dragMode, setDragMode] = useState<DragMode | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
   const dragStartRef = useRef<{
     pointerX: number;
     pointerY: number;
     crop: CropRect;
   } | null>(null);
+  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(
+    null,
+  );
 
   useEffect(() => {
     onCropAreaChangeRef.current = onCropAreaChange;
@@ -146,9 +160,9 @@ export function FreeCropEditor({
         container.clientWidth,
         container.clientHeight,
         layout,
-        1,
-        0,
-        0,
+        zoom,
+        pan.x,
+        pan.y,
       );
 
       return {
@@ -156,7 +170,7 @@ export function FreeCropEditor({
         y: clamp01(normalized.y) * naturalSize.height,
       };
     },
-    [layout, naturalSize.height, naturalSize.width],
+    [layout, naturalSize.height, naturalSize.width, pan.x, pan.y, zoom],
   );
 
   const commitCrop = useCallback(
@@ -283,6 +297,95 @@ export function FreeCropEditor({
     };
   }, [commitCrop, dragMode, pointerToNatural]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const localY = event.clientY - rect.top;
+
+      setZoom((currentZoom) => {
+        const result = applyWheelZoom(
+          currentZoom,
+          event.deltaY,
+          localX,
+          localY,
+          container.clientWidth,
+          container.clientHeight,
+          pan.x,
+          pan.y,
+        );
+        setPan({ x: result.panX, y: result.panY });
+        return result.zoom;
+      });
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [pan.x, pan.y]);
+
+  useEffect(() => {
+    if (!isPanning) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const start = panStartRef.current;
+      if (!start) return;
+
+      setPan({
+        x: start.panX + (event.clientX - start.x),
+        y: start.panY + (event.clientY - start.y),
+      });
+    };
+
+    const handlePointerUp = () => {
+      setIsPanning(false);
+      panStartRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [isPanning]);
+
+  const applyZoomAtPoint = useCallback(
+    (nextZoom: number, localX: number, localY: number) => {
+      const clamped = clampZoom(nextZoom);
+      setZoom((oldZoom) => {
+        setPan((oldPan) =>
+          computePanForZoomAtPoint(
+            localX,
+            localY,
+            containerSize.width,
+            containerSize.height,
+            oldZoom,
+            clamped,
+            oldPan.x,
+            oldPan.y,
+          ),
+        );
+        return clamped;
+      });
+    },
+    [containerSize.height, containerSize.width],
+  );
+
+  const handleZoomChange = (nextZoom: number) => {
+    applyZoomAtPoint(nextZoom, containerSize.width / 2, containerSize.height / 2);
+  };
+
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
   const startDrag = (mode: DragMode, event: React.PointerEvent) => {
     if (!cropRect) return;
     event.preventDefault();
@@ -313,9 +416,9 @@ export function FreeCropEditor({
     containerWidth,
     containerHeight,
     layout,
-    1,
-    0,
-    0,
+    zoom,
+    pan.x,
+    pan.y,
   );
   const bottomRight = imageNormalizedToContainer(
     (cropRect.x + cropRect.width) / naturalSize.width,
@@ -323,9 +426,9 @@ export function FreeCropEditor({
     containerWidth,
     containerHeight,
     layout,
-    1,
-    0,
-    0,
+    zoom,
+    pan.x,
+    pan.y,
   );
 
   const boxLeft = topLeft.x;
@@ -381,44 +484,104 @@ export function FreeCropEditor({
     ];
 
   return (
-    <div
-      ref={containerRef}
-      className="relative h-56 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={imageUrl}
-        alt="Crop source"
-        className="absolute inset-0 h-full w-full object-contain"
-        draggable={false}
-      />
-
+    <div className="space-y-3">
       <div
-        className="absolute border-2 border-white bg-white/10"
-        style={{
-          left: boxLeft,
-          top: boxTop,
-          width: boxWidth,
-          height: boxHeight,
-          cursor: "move",
-        }}
-        onPointerDown={(event) => startDrag("move", event)}
-      />
+        ref={containerRef}
+        className="relative h-56 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900"
+        onPointerDown={(event) => {
+          if (event.button !== 0 || dragMode) return;
+          if ((event.target as HTMLElement).closest("button")) return;
+          if ((event.target as HTMLElement).closest("[data-crop-box]")) return;
 
-      {handles.map((handle) => (
-        <button
-          key={handle.mode}
-          type="button"
-          aria-label={`Resize ${handle.mode}`}
-          className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-zinc-900"
+          setIsPanning(true);
+          panStartRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+            panX: pan.x,
+            panY: pan.y,
+          };
+        }}
+      >
+        <div
+          className="absolute inset-0"
           style={{
-            left: handle.left,
-            top: handle.top,
-            cursor: handle.cursor,
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "center center",
           }}
-          onPointerDown={(event) => startDrag(handle.mode, event)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt="Crop source"
+            className="h-full w-full object-contain"
+            draggable={false}
+          />
+        </div>
+
+        <div
+          data-crop-box
+          className="absolute border-2 border-white bg-white/10"
+          style={{
+            left: boxLeft,
+            top: boxTop,
+            width: boxWidth,
+            height: boxHeight,
+            cursor: "move",
+          }}
+          onPointerDown={(event) => startDrag("move", event)}
         />
-      ))}
+
+        {handles.map((handle) => (
+          <button
+            key={handle.mode}
+            type="button"
+            aria-label={`Resize ${handle.mode}`}
+            className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-zinc-900"
+            style={{
+              left: handle.left,
+              top: handle.top,
+              cursor: handle.cursor,
+            }}
+            onPointerDown={(event) => startDrag(handle.mode, event)}
+          />
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => handleZoomChange(zoom - EDITOR_ZOOM_STEP)}
+          disabled={zoom <= EDITOR_MIN_ZOOM}
+          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min={EDITOR_MIN_ZOOM}
+          max={EDITOR_MAX_ZOOM}
+          step={0.05}
+          value={zoom}
+          onChange={(event) => handleZoomChange(Number(event.target.value))}
+          className="w-full accent-zinc-900"
+          aria-label="Crop zoom"
+        />
+        <button
+          type="button"
+          onClick={() => handleZoomChange(zoom + EDITOR_ZOOM_STEP)}
+          disabled={zoom >= EDITOR_MAX_ZOOM}
+          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={resetView}
+          className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300"
+        >
+          Reset zoom
+        </button>
+      </div>
     </div>
   );
 }
