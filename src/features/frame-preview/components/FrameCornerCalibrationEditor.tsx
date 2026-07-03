@@ -13,6 +13,12 @@ import {
 import {
   CORNER_QUADRANT_LABELS,
   detectSourceCorner,
+  isHorizontalStripValid,
+  isVerticalStripValid,
+  RAIL_SOURCE_MODE_LABELS,
+  RAIL_SOURCE_MODE_OPTIONS,
+  RAIL_SOURCE_SIDE_LABELS,
+  RAIL_SOURCE_SIDE_OPTIONS,
   resolveSourceCorner,
   SOURCE_CORNER_OPTION_LABELS,
   SOURCE_CORNER_OPTIONS,
@@ -476,6 +482,65 @@ export function FrameCornerCalibrationEditor({
         </p>
       ) : null}
 
+      <div className="space-y-2 border-t border-zinc-100 pt-3">
+        <span className="text-xs font-medium text-zinc-700">Rail source mode</span>
+        <p className="text-xs text-zinc-500">
+          Use this when one rail sample is longer and cleaner. The selected rail
+          will be rotated/flipped for all sides.
+        </p>
+        <div className="space-y-2">
+          {RAIL_SOURCE_MODE_OPTIONS.map((option) => {
+            const disabled =
+              (option === "horizontal-all" && !isHorizontalStripValid(calibration)) ||
+              (option === "vertical-all" && !isVerticalStripValid(calibration));
+
+            return (
+              <button
+                key={option}
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  onCalibrationChange({ ...calibration, railSourceMode: option })
+                }
+                className={`w-full rounded-md border px-2 py-1.5 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  calibration.railSourceMode === option
+                    ? "border-zinc-900 bg-zinc-50 font-medium text-zinc-900"
+                    : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                }`}
+              >
+                {RAIL_SOURCE_MODE_LABELS[option]}
+              </button>
+            );
+          })}
+        </div>
+
+        {calibration.railSourceMode !== "separate" ? (
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-zinc-700">
+              Selected rail represents
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {RAIL_SOURCE_SIDE_OPTIONS.map((side) => (
+                <button
+                  key={side}
+                  type="button"
+                  onClick={() =>
+                    onCalibrationChange({ ...calibration, railSourceSide: side })
+                  }
+                  className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                    calibration.railSourceSide === side
+                      ? "border-zinc-900 bg-zinc-50 font-medium text-zinc-900"
+                      : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                  }`}
+                >
+                  {RAIL_SOURCE_SIDE_LABELS[side]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
         {(Object.keys(TOOL_LABELS) as CalibrationTool[]).map((tool) => (
           <button
@@ -688,5 +753,7 @@ export function getCalibrationOrDefault(
   return {
     ...calibration,
     sourceCorner: calibration.sourceCorner ?? "auto",
+    railSourceMode: calibration.railSourceMode ?? "separate",
+    railSourceSide: calibration.railSourceSide ?? "top",
   };
 }

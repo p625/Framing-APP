@@ -2,6 +2,8 @@ import type {
   FrameCornerCalibration,
   NormalizedRect,
   Point,
+  RailSourceMode,
+  RailSourceSide,
   SourceCornerSetting,
 } from "../framing.types";
 
@@ -179,6 +181,16 @@ export function getRailFlips(photoCorner: CornerQuadrant): Record<
   };
 }
 
+export function isHorizontalStripValid(calibration: FrameCornerCalibration): boolean {
+  const { horizontalStrip } = calibration;
+  return horizontalStrip.width > 0.01 && horizontalStrip.height > 0.01;
+}
+
+export function isVerticalStripValid(calibration: FrameCornerCalibration): boolean {
+  const { verticalStrip } = calibration;
+  return verticalStrip.width > 0.01 && verticalStrip.height > 0.01;
+}
+
 export function isFrameCornerCalibrationComplete(
   calibration: FrameCornerCalibration | null,
 ): boolean {
@@ -186,14 +198,14 @@ export function isFrameCornerCalibrationComplete(
     return false;
   }
 
-  const { horizontalStrip, verticalStrip } = calibration;
-
-  return (
-    horizontalStrip.width > 0.01 &&
-    horizontalStrip.height > 0.01 &&
-    verticalStrip.width > 0.01 &&
-    verticalStrip.height > 0.01
-  );
+  switch (calibration.railSourceMode) {
+    case "horizontal-all":
+      return isHorizontalStripValid(calibration);
+    case "vertical-all":
+      return isVerticalStripValid(calibration);
+    default:
+      return isHorizontalStripValid(calibration) && isVerticalStripValid(calibration);
+  }
 }
 
 export function denormalizeRect(
@@ -268,6 +280,149 @@ export function resolveVerticalRailStrip(
     tileThickness: frameThicknessPx,
   };
 }
+
+export type StripOrientation = "horizontal" | "vertical";
+
+const RAIL_SIDE_INDEX: Record<RailSourceSide, number> = {
+  top: 0,
+  right: 1,
+  bottom: 2,
+  left: 3,
+};
+
+export interface RailSideDrawParams {
+  rotation: CornerRotation;
+  flipX: boolean;
+  flipY: boolean;
+  tileAlong: "horizontal" | "vertical";
+}
+
+const HORIZONTAL_STRIP_SIDE_PARAMS: Record<number, RailSideDrawParams> = {
+  0: { rotation: 0, flipX: false, flipY: false, tileAlong: "horizontal" },
+  1: { rotation: 90, flipX: false, flipY: false, tileAlong: "vertical" },
+  2: { rotation: 180, flipX: false, flipY: true, tileAlong: "horizontal" },
+  3: { rotation: 270, flipX: false, flipY: false, tileAlong: "vertical" },
+};
+
+const VERTICAL_STRIP_SIDE_PARAMS: Record<number, RailSideDrawParams> = {
+  0: { rotation: 0, flipX: false, flipY: false, tileAlong: "vertical" },
+  1: { rotation: 90, flipX: false, flipY: false, tileAlong: "horizontal" },
+  2: { rotation: 180, flipX: true, flipY: false, tileAlong: "vertical" },
+  3: { rotation: 270, flipX: false, flipY: false, tileAlong: "horizontal" },
+};
+
+export function getRailSideDrawParams(
+  stripOrientation: StripOrientation,
+  declaredSide: RailSourceSide,
+  targetSide: RailSourceSide,
+): RailSideDrawParams {
+  const steps = (RAIL_SIDE_INDEX[targetSide] - RAIL_SIDE_INDEX[declaredSide] + 4) % 4;
+  const table =
+    stripOrientation === "horizontal"
+      ? HORIZONTAL_STRIP_SIDE_PARAMS
+      : VERTICAL_STRIP_SIDE_PARAMS;
+
+  return table[steps];
+}
+
+export function toCornerTransform(params: RailSideDrawParams): CornerTransform {
+  return {
+    rotation: params.rotation,
+    flipX: params.flipX,
+    flipY: params.flipY,
+  };
+}
+
+export interface CalibratedRailDrawPlan {
+  resolved: ResolvedRailStrip;
+  transform: CornerTransform;
+  tileAlong: "horizontal" | "vertical";
+}
+
+export function getCalibratedRailDrawPlan(
+  calibration: FrameCornerCalibration,
+  horizontalStripPx: { x: number; y: number; width: number; height: number },
+  verticalStripPx: { x: number; y: number; width: number; height: number },
+  framePxH: number,
+  framePxV: number,
+  sourceCorner: CornerQuadrant,
+  targetRail: RailSourceSide,
+): CalibratedRailDrawPlan {
+  const isHorizontalRail = targetRail === "top" || targetRail === "bottom";
+  const frameThicknessPx = isHorizontalRail ? framePxV : framePxH;
+
+  if (calibration.railSourceMode === "horizontal-all") {
+    const sideParams = getRailSideDrawParams(
+      "horizontal",
+      calibration.railSourceSide,
+      targetRail,
+    );
+
+    return {
+      resolved: resolveHorizontalRailStrip(horizontalStripPx, frameThicknessPx),
+      transform: toCornerTransform(sideParams),
+      tileAlong: sideParams.tileAlong,
+    };
+  }
+
+  if (calibration.railSourceMode === "vertical-all") {
+    const sideParams = getRailSideDrawParams(
+      "vertical",
+      calibration.railSourceSide,
+      targetRail,
+    );
+
+    return {
+      resolved: resolveVerticalRailStrip(verticalStripPx, frameThicknessPx),
+      transform: toCornerTransform(sideParams),
+      tileAlong: sideParams.tileAlong,
+    };
+  }
+
+  if (isHorizontalRail) {
+    const flip = getRailFlipFromSourceCorner(sourceCorner, targetRail);
+
+    return {
+      resolved: resolveHorizontalRailStrip(horizontalStripPx, frameThicknessPx),
+      transform: { rotation: 0, flipX: flip.flipX, flipY: flip.flipY },
+      tileAlong: "horizontal",
+    };
+  }
+
+  const flip = getRailFlipFromSourceCorner(sourceCorner, targetRail);
+
+  return {
+    resolved: resolveVerticalRailStrip(verticalStripPx, frameThicknessPx),
+    transform: { rotation: 0, flipX: flip.flipX, flipY: flip.flipY },
+    tileAlong: "vertical",
+  };
+}
+
+export const RAIL_SOURCE_MODE_OPTIONS: RailSourceMode[] = [
+  "separate",
+  "horizontal-all",
+  "vertical-all",
+];
+
+export const RAIL_SOURCE_MODE_LABELS: Record<RailSourceMode, string> = {
+  separate: "Horizontal and vertical separately",
+  "horizontal-all": "Horizontal rail for all sides",
+  "vertical-all": "Vertical rail for all sides",
+};
+
+export const RAIL_SOURCE_SIDE_OPTIONS: RailSourceSide[] = [
+  "top",
+  "right",
+  "bottom",
+  "left",
+];
+
+export const RAIL_SOURCE_SIDE_LABELS: Record<RailSourceSide, string> = {
+  top: "Top",
+  right: "Right",
+  bottom: "Bottom",
+  left: "Left",
+};
 
 export function getCalibratedCornerSource(
   calibration: FrameCornerCalibration,

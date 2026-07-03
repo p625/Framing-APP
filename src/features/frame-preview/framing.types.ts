@@ -129,7 +129,13 @@ export interface FrameCornerCalibration {
   horizontalStrip: NormalizedRect;
   verticalStrip: NormalizedRect;
   sourceCorner: SourceCornerSetting;
+  railSourceMode: RailSourceMode;
+  railSourceSide: RailSourceSide;
 }
+
+export type RailSourceMode = "separate" | "horizontal-all" | "vertical-all";
+
+export type RailSourceSide = "top" | "right" | "bottom" | "left";
 
 export type SourceCornerSetting =
   | "auto"
@@ -166,6 +172,8 @@ export const DEFAULT_FRAME_CORNER_CALIBRATION: FrameCornerCalibration = {
   horizontalStrip: { x: 0.12, y: 0.44, width: 0.5, height: 0.08 },
   verticalStrip: { x: 0.44, y: 0.12, width: 0.08, height: 0.5 },
   sourceCorner: "auto",
+  railSourceMode: "separate",
+  railSourceSide: "top",
 };
 
 export const MAT_COLOR_PRESETS = [
