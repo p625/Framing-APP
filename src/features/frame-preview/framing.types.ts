@@ -56,6 +56,7 @@ export interface FramingState {
   perspectiveCorners: PerspectiveCorners;
   cropSettings: CropSettings;
   croppedArtworkUrl: string | null;
+  cropEditorKey: number;
   canvasSize: CanvasSize;
   selectedFrameId: string | null;
   customFrameTextureUrl: string | null;
@@ -127,10 +128,10 @@ export const DEFAULT_MAT_SETTINGS: MatSettings = {
 };
 
 export const DEFAULT_PERSPECTIVE_CORNERS: PerspectiveCorners = {
-  topLeft: { x: 0.08, y: 0.08 },
-  topRight: { x: 0.92, y: 0.08 },
-  bottomRight: { x: 0.92, y: 0.92 },
-  bottomLeft: { x: 0.08, y: 0.92 },
+  topLeft: { x: 0, y: 0 },
+  topRight: { x: 1, y: 0 },
+  bottomRight: { x: 1, y: 1 },
+  bottomLeft: { x: 0, y: 1 },
 };
 
 export const MAT_COLOR_PRESETS = [

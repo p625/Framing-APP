@@ -41,6 +41,7 @@ export function useFramingState(): UseFramingStateReturn {
   const [frameSampleMode, setFrameSampleMode] = useState<FrameSampleMode>("texture");
   const [frameWidthCm, setFrameWidthCm] = useState(3);
   const [textureScale, setTextureScale] = useState<number>(DEFAULT_TEXTURE_SCALE);
+  const [cropEditorKey, setCropEditorKey] = useState(0);
   const [matSettings, setMatSettingsState] = useState<MatSettings>(DEFAULT_MAT_SETTINGS);
 
   const artworkPreviewUrl = useMemo(
@@ -126,6 +127,7 @@ export function useFramingState(): UseFramingStateReturn {
     });
     setCropSettingsState(DEFAULT_CROP_SETTINGS);
     clearAppliedCrop();
+    setCropEditorKey((value) => value + 1);
   }, [artworkPreviewUrl, perspectiveCorners, clearAppliedCrop]);
 
   const resetPerspective = useCallback(() => {
@@ -133,6 +135,7 @@ export function useFramingState(): UseFramingStateReturn {
     clearCorrectedArtwork();
     setCropSettingsState(DEFAULT_CROP_SETTINGS);
     clearAppliedCrop();
+    setCropEditorKey((value) => value + 1);
   }, [clearAppliedCrop, clearCorrectedArtwork]);
 
   const setCropSettings = useCallback((settings: Partial<CropSettings>) => {
@@ -161,15 +164,12 @@ export function useFramingState(): UseFramingStateReturn {
       lockToArtworkRatio: previous.lockToArtworkRatio,
     }));
     clearAppliedCrop();
+    setCropEditorKey((value) => value + 1);
   }, [clearAppliedCrop]);
 
-  const setCanvasSize = useCallback(
-    (size: Partial<CanvasSize>) => {
-      setCanvasSizeState((previous) => ({ ...previous, ...size }));
-      clearAppliedCrop();
-    },
-    [clearAppliedCrop],
-  );
+  const setCanvasSize = useCallback((size: Partial<CanvasSize>) => {
+    setCanvasSizeState((previous) => ({ ...previous, ...size }));
+  }, []);
 
   const setCustomFrameFile = useCallback((file: File | null) => {
     setCustomFrameFileState(file);
@@ -194,6 +194,7 @@ export function useFramingState(): UseFramingStateReturn {
     perspectiveCorners,
     cropSettings,
     croppedArtworkUrl,
+    cropEditorKey,
     canvasSize,
     selectedFrameId,
     customFrameTextureUrl,

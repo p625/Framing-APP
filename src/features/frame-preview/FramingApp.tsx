@@ -32,8 +32,8 @@ export function FramingApp() {
       <header className="border-b border-zinc-200 bg-white px-6 py-4">
         <h1 className="text-lg font-semibold text-zinc-900">Frame Preview</h1>
         <p className="text-sm text-zinc-500">
-          Straighten a photo of your artwork, crop it, then preview it in a real
-          frame with accurate proportions.
+          First straighten the photographed artwork, then crop the final image area.
+          Size in cm is used only for real-world proportions during framing.
         </p>
       </header>
 
@@ -46,7 +46,7 @@ export function FramingApp() {
             />
           </WorkflowSection>
 
-          <WorkflowSection step={2} title="Mark artwork corners">
+          <WorkflowSection step={2} title="Mark corners & straighten">
             <PerspectiveEditor
               artworkPreviewUrl={framing.artworkPreviewUrl}
               perspectiveCorners={framing.perspectiveCorners}
@@ -57,9 +57,10 @@ export function FramingApp() {
             />
           </WorkflowSection>
 
-          <WorkflowSection step={3} title="Straighten & crop">
+          <WorkflowSection step={3} title="Crop image">
             <ArtworkCropper
               cropSourceUrl={cropSourceUrl}
+              cropEditorKey={framing.cropEditorKey}
               canvasSize={framing.canvasSize}
               cropSettings={framing.cropSettings}
               croppedArtworkUrl={framing.croppedArtworkUrl}
@@ -69,7 +70,7 @@ export function FramingApp() {
             />
           </WorkflowSection>
 
-          <WorkflowSection step={4} title="Set artwork size">
+          <WorkflowSection step={4} title="Final artwork size">
             <SizeInputs
               canvasSize={framing.canvasSize}
               onCanvasSizeChange={framing.setCanvasSize}
