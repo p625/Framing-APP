@@ -1,13 +1,16 @@
 "use client";
 
 import type { FrameDefinition, FrameSampleMode, UseFramingStateReturn } from "../../framing.types";
+import type { UseEnvironmentStateReturn } from "../../hooks/useEnvironmentState";
 import type { CenterView } from "../../ui/appUi.types";
 import { ArtworkCropper } from "../ArtworkCropper";
 import { PerspectiveEditor } from "../PerspectiveEditor";
 import { PreviewCanvas } from "../PreviewCanvas";
+import { EnvironmentPreview } from "./EnvironmentPreview";
 
 interface CenterWorkspaceProps {
   framing: UseFramingStateReturn;
+  environment: UseEnvironmentStateReturn;
   centerView: CenterView;
   onReturnToPreview: () => void;
   selectedFrame: FrameDefinition | null;
@@ -16,6 +19,7 @@ interface CenterWorkspaceProps {
 
 export function CenterWorkspace({
   framing,
+  environment,
   centerView,
   onReturnToPreview,
   selectedFrame,
@@ -53,6 +57,17 @@ export function CenterWorkspace({
         displayMode="workspace"
         onDone={onReturnToPreview}
         onCancel={onReturnToPreview}
+      />
+    );
+  }
+
+  if (centerView === "environment") {
+    return (
+      <EnvironmentPreview
+        framing={framing}
+        environment={environment}
+        selectedFrame={selectedFrame}
+        frameSampleMode={frameSampleMode}
       />
     );
   }

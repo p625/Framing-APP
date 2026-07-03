@@ -238,3 +238,28 @@ export interface SavedFrameProfileSummary {
   name: string;
   savedAt: number;
 }
+
+export interface SavedEnvironmentSummary {
+  id: string;
+  name: string;
+  updatedAt: number;
+}
+
+export interface EnvironmentPlacement {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+}
+
+export const DEFAULT_ENVIRONMENT_PLACEMENT: EnvironmentPlacement = {
+  x: 50,
+  y: 44,
+  scale: 0.52,
+  rotation: 0,
+};
+
+export type EnvironmentSelection =
+  | { kind: "builtin"; id: string }
+  | { kind: "saved"; id: string }
+  | null;

@@ -14,6 +14,7 @@ import {
 } from "../renderer/drawFramedArtwork";
 
 const PREVIEW_CANVAS_ID = "framing-preview-canvas";
+const ENVIRONMENT_FRAME_CANVAS_ID = "framing-environment-frame-canvas";
 
 interface PreviewCanvasProps {
   artworkImageUrl: string | null;
@@ -28,6 +29,7 @@ interface PreviewCanvasProps {
   matSettings: MatSettings;
   fillContainer?: boolean;
   embedded?: boolean;
+  canvasId?: string;
 }
 
 function useLoadedImage(url: string | null | undefined) {
@@ -77,6 +79,7 @@ export function PreviewCanvas({
   matSettings,
   fillContainer = false,
   embedded = false,
+  canvasId = PREVIEW_CANVAS_ID,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const artworkImage = useLoadedImage(artworkImageUrl);
@@ -157,7 +160,7 @@ export function PreviewCanvas({
       >
         {artworkImageUrl ? (
           <canvas
-            id={PREVIEW_CANVAS_ID}
+            id={canvasId}
             ref={canvasRef}
             width={renderDimensions.width}
             height={renderDimensions.height}
@@ -182,4 +185,4 @@ export function PreviewCanvas({
   );
 }
 
-export { PREVIEW_CANVAS_ID };
+export { PREVIEW_CANVAS_ID, ENVIRONMENT_FRAME_CANVAS_ID };

@@ -158,17 +158,11 @@ export function SavedArtworksGrid({
           {projects.map((project) => {
             const thumb = thumbnails[project.id];
             return (
-              <div
+              <button
                 key={project.id}
-                role="button"
-                tabIndex={0}
-                onDoubleClick={() => void handleLoad(project.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void handleLoad(project.id);
-                  }
-                }}
-                className="fs-thumbnail group cursor-pointer"
+                type="button"
+                onClick={() => void handleLoad(project.id)}
+                className="fs-thumbnail group w-full text-left"
               >
                 <div className="aspect-[4/3] bg-fs-bg-elevated">
                   {thumb ? (
@@ -207,21 +201,27 @@ export function SavedArtworksGrid({
                   <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
-                      onClick={() => startRename(project)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        startRename(project);
+                      }}
                       className="text-[10px] text-zinc-500 hover:text-zinc-900"
                     >
                       Rename
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDelete(project.id, project.name)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleDelete(project.id, project.name);
+                      }}
                       className="text-[10px] text-red-600 hover:text-red-800"
                     >
                       Delete
                     </button>
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

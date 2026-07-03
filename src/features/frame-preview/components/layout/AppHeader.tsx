@@ -5,17 +5,10 @@ import { BrandLockup } from "../brand/BrandLockup";
 
 interface AppHeaderProps {
   mode: AppMode;
-  onOpenSettings: () => void;
   onExitProfileEditor: () => void;
-  onCreateProfile: () => void;
 }
 
-export function AppHeader({
-  mode,
-  onOpenSettings,
-  onExitProfileEditor,
-  onCreateProfile,
-}: AppHeaderProps) {
+export function AppHeader({ mode, onExitProfileEditor }: AppHeaderProps) {
   const isProfileEditor = mode === "profile-editor";
 
   return (
@@ -28,35 +21,15 @@ export function AppHeader({
             : undefined
         }
       />
-      <div className="flex items-center gap-2">
-        {isProfileEditor ? (
-          <button
-            type="button"
-            onClick={onExitProfileEditor}
-            className="fs-btn fs-btn-secondary"
-          >
-            Back to workspace
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onCreateProfile}
-              className="fs-btn fs-btn-gold"
-            >
-              New frame profile
-            </button>
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="fs-btn fs-btn-secondary"
-              aria-label="Open frame profile editor"
-            >
-              Settings
-            </button>
-          </>
-        )}
-      </div>
+      {isProfileEditor ? (
+        <button
+          type="button"
+          onClick={onExitProfileEditor}
+          className="fs-btn fs-btn-secondary"
+        >
+          Back to workspace
+        </button>
+      ) : null}
     </header>
   );
 }

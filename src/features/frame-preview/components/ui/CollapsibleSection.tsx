@@ -1,13 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { SidebarSectionId } from "../../ui/appUi.types";
+import type { WorkspaceSectionId } from "../../ui/appUi.types";
 
 interface CollapsibleSectionProps {
-  id: SidebarSectionId;
+  id: WorkspaceSectionId;
   title: string;
   isOpen: boolean;
-  onToggle: (id: SidebarSectionId) => void;
+  onToggle: (id: WorkspaceSectionId) => void;
   children: ReactNode;
 }
 

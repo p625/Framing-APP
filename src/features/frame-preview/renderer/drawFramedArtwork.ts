@@ -208,6 +208,78 @@ function getPolygonBounds(points: Point[]) {
   };
 }
 
+const CORNER_INSET_FACTOR = 2.5;
+const MIN_STRAIGHT_RAIL_PX = 6;
+
+interface FrameCornerInsets {
+  cornerW: number;
+  cornerH: number;
+}
+
+function computeFrameCornerInsets(layout: FramedLayout): FrameCornerInsets {
+  const { framePxH, framePxV, totalPxW, totalPxH } = layout;
+  const thickness = Math.max(framePxH, framePxV, 1);
+  const desiredW = Math.max(thickness * CORNER_INSET_FACTOR, 8);
+  const desiredH = Math.max(thickness * CORNER_INSET_FACTOR, 8);
+  const maxCornerW = Math.max(0, (totalPxW - MIN_STRAIGHT_RAIL_PX) / 2);
+  const maxCornerH = Math.max(0, (totalPxH - MIN_STRAIGHT_RAIL_PX) / 2);
+
+  return {
+    cornerW: Math.min(desiredW, maxCornerW),
+    cornerH: Math.min(desiredH, maxCornerH),
+  };
+}
+
+interface RailStraightSegment {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function getRailStraightSegment(
+  railId: FrameRail["id"],
+  layout: FramedLayout,
+  insets: FrameCornerInsets,
+): RailStraightSegment {
+  const { offsetX: ox, offsetY: oy, totalPxW, totalPxH, framePxH, framePxV } =
+    layout;
+  const outerRight = ox + totalPxW;
+  const outerBottom = oy + totalPxH;
+  const { cornerW, cornerH } = insets;
+
+  switch (railId) {
+    case "top":
+      return {
+        x: ox + cornerW,
+        y: oy,
+        width: totalPxW - cornerW * 2,
+        height: framePxV,
+      };
+    case "bottom":
+      return {
+        x: ox + cornerW,
+        y: outerBottom - framePxV,
+        width: totalPxW - cornerW * 2,
+        height: framePxV,
+      };
+    case "left":
+      return {
+        x: ox,
+        y: oy + cornerH,
+        width: framePxH,
+        height: totalPxH - cornerH * 2,
+      };
+    case "right":
+      return {
+        x: outerRight - framePxH,
+        y: oy + cornerH,
+        width: framePxH,
+        height: totalPxH - cornerH * 2,
+      };
+  }
+}
+
 function createScaledPattern(
   ctx: CanvasRenderingContext2D,
   textureImage: HTMLImageElement,
@@ -402,8 +474,9 @@ function drawTiledRailStrip(
 
   if (axis === "horizontal") {
     let x = destX;
-    while (x < destX + destWidth - 0.5) {
-      const drawW = Math.min(tileW, destX + destWidth - x);
+    const endX = destX + destWidth;
+    while (x < endX - 1e-6) {
+      const drawW = Math.min(tileW, endX - x);
       const srcW = drawW / scale;
       drawRailTile(
         ctx,
@@ -422,8 +495,9 @@ function drawTiledRailStrip(
     }
   } else {
     let y = destY;
-    while (y < destY + destHeight - 0.5) {
-      const drawH = Math.min(tileH, destY + destHeight - y);
+    const endY = destY + destHeight;
+    while (y < endY - 1e-6) {
+      const drawH = Math.min(tileH, endY - y);
       const srcH = drawH / scale;
       drawRailTile(
         ctx,
@@ -486,8 +560,12 @@ function drawCalibratedTiledRail(
   image: HTMLImageElement,
   rail: FrameRail,
   plan: CalibratedRailDrawPlan,
+  segment: RailStraightSegment,
 ): void {
-  const bounds = getPolygonBounds(rail.points);
+  if (segment.width <= 0 || segment.height <= 0) {
+    return;
+  }
+
   const { resolved, transform } = plan;
   const { tileLength, tileThickness } = resolved;
 
@@ -497,14 +575,16 @@ function drawCalibratedTiledRail(
   ctx.clip();
 
   if (transform.tileAlong === "horizontal") {
-    let x = bounds.x;
-    while (x < bounds.x + bounds.width - 0.5) {
-      const drawW = Math.min(tileLength, bounds.x + bounds.width - x);
+    let x = segment.x;
+    const endX = segment.x + segment.width;
+    const centerY = segment.y + segment.height / 2;
+    while (x < endX - 1e-6) {
+      const drawW = Math.min(tileLength, endX - x);
       drawMasterRailTile(
         ctx,
         image,
         x + drawW / 2,
-        bounds.y + tileThickness / 2,
+        centerY,
         drawW,
         tileThickness,
         resolved,
@@ -514,13 +594,15 @@ function drawCalibratedTiledRail(
       x += tileLength;
     }
   } else {
-    let y = bounds.y;
-    while (y < bounds.y + bounds.height - 0.5) {
-      const drawH = Math.min(tileLength, bounds.y + bounds.height - y);
+    let y = segment.y;
+    const endY = segment.y + segment.height;
+    const centerX = segment.x + segment.width / 2;
+    while (y < endY - 1e-6) {
+      const drawH = Math.min(tileLength, endY - y);
       drawMasterRailTile(
         ctx,
         image,
-        bounds.x + tileThickness / 2,
+        centerX,
         y + drawH / 2,
         tileThickness,
         drawH,
@@ -575,8 +657,8 @@ function drawCalibratedCornerSampleFrame(
     layout;
   const outerRight = ox + totalPxW;
   const outerBottom = oy + totalPxH;
-  const cornerW = Math.max(framePxH * 2.2, 8);
-  const cornerH = Math.max(framePxV * 2.2, 8);
+  const insets = computeFrameCornerInsets(layout);
+  const { cornerW, cornerH } = insets;
   const imgW = cornerImage.naturalWidth;
   const imgH = cornerImage.naturalHeight;
   const horizontalStrip = denormalizeRect(
@@ -607,8 +689,9 @@ function drawCalibratedCornerSampleFrame(
       sourceCorner,
       rail.id,
     );
+    const segment = getRailStraightSegment(rail.id, layout, insets);
 
-    drawCalibratedTiledRail(ctx, cornerImage, rail, plan);
+    drawCalibratedTiledRail(ctx, cornerImage, rail, plan, segment);
   }
 
   const frameCorners: { corner: CornerQuadrant; x: number; y: number }[] = [
@@ -644,8 +727,8 @@ function drawCornerSampleFrame(
     layout;
   const outerRight = ox + totalPxW;
   const outerBottom = oy + totalPxH;
-  const cornerW = Math.max(framePxH * 2.2, 8);
-  const cornerH = Math.max(framePxV * 2.2, 8);
+  const insets = computeFrameCornerInsets(layout);
+  const { cornerW, cornerH } = insets;
   const imgW = cornerImage.naturalWidth;
   const imgH = cornerImage.naturalHeight;
   const stripSourceW = Math.max(1, Math.floor(imgW * 0.15));
@@ -662,6 +745,10 @@ function drawCornerSampleFrame(
   const bottomStripY = outerBottom - framePxV;
   const leftStripX = ox;
   const rightStripX = outerRight - framePxH;
+  const topSegment = getRailStraightSegment("top", layout, insets);
+  const bottomSegment = getRailStraightSegment("bottom", layout, insets);
+  const leftSegment = getRailStraightSegment("left", layout, insets);
+  const rightSegment = getRailStraightSegment("right", layout, insets);
 
   const horizontalSourceW = stripSourceW;
   const verticalSourceH = stripSourceH;
@@ -669,9 +756,9 @@ function drawCornerSampleFrame(
   drawTiledRailStrip(
     ctx,
     cornerImage,
-    ox + cornerW,
+    topSegment.x,
     topStripY,
-    totalPxW - cornerW * 2,
+    topSegment.width,
     framePxV,
     stripSourceW,
     0,
@@ -684,9 +771,9 @@ function drawCornerSampleFrame(
   drawTiledRailStrip(
     ctx,
     cornerImage,
-    ox + cornerW,
+    bottomSegment.x,
     bottomStripY,
-    totalPxW - cornerW * 2,
+    bottomSegment.width,
     framePxV,
     stripSourceW,
     imgH - stripSourceH,
@@ -700,9 +787,9 @@ function drawCornerSampleFrame(
     ctx,
     cornerImage,
     leftStripX,
-    oy + cornerH,
+    leftSegment.y,
     framePxH,
-    totalPxH - cornerH * 2,
+    leftSegment.height,
     0,
     stripSourceH,
     stripSourceW,
@@ -715,9 +802,9 @@ function drawCornerSampleFrame(
     ctx,
     cornerImage,
     rightStripX,
-    oy + cornerH,
+    rightSegment.y,
     framePxH,
-    totalPxH - cornerH * 2,
+    rightSegment.height,
     imgW - stripSourceW,
     stripSourceH,
     stripSourceW,

@@ -4,25 +4,27 @@ import { useCallback, useState } from "react";
 import type {
   AppMode,
   CenterView,
+  ExportMode,
   FrameCatalogueSelection,
-  SidebarSectionId,
+  WorkspaceSectionId,
 } from "../ui/appUi.types";
 
 export function useAppUiState() {
   const [appMode, setAppMode] = useState<AppMode>("workspace");
   const [centerView, setCenterView] = useState<CenterView>("preview");
-  const [openSection, setOpenSection] = useState<SidebarSectionId>("artwork");
+  const [openSection, setOpenSection] = useState<WorkspaceSectionId>("artwork");
   const [frameSelection, setFrameSelection] = useState<FrameCatalogueSelection | null>(
     { kind: "builtin", id: "oak" },
   );
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [profileCatalogueRevision, setProfileCatalogueRevision] = useState(0);
+  const [exportMode, setExportMode] = useState<ExportMode>("framed");
 
   const notifyProfileCatalogueChanged = useCallback(() => {
     setProfileCatalogueRevision((revision) => revision + 1);
   }, []);
 
-  const openSectionToggle = useCallback((section: SidebarSectionId) => {
+  const openSectionToggle = useCallback((section: WorkspaceSectionId) => {
     setOpenSection((current) => (current === section ? current : section));
   }, []);
 
@@ -53,9 +55,11 @@ export function useAppUiState() {
     frameSelection,
     editingProfileId,
     profileCatalogueRevision,
+    exportMode,
     openSectionToggle,
     setFrameSelection,
     setEditingProfileId,
+    setExportMode,
     enterProfileEditor,
     exitProfileEditor,
     openCenterView,

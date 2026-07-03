@@ -1,8 +1,12 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { SerializableFrameProfile, SerializableProject } from "../framing.types";
+import type {
+  SerializableFrameProfile,
+  SerializableProject,
+  StoredImagePayload,
+} from "../framing.types";
 
 const DB_NAME = "framing-app";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface ProjectRecord {
   id: string;
@@ -18,6 +22,15 @@ export interface FrameProfileRecord {
   data: SerializableFrameProfile;
 }
 
+export interface EnvironmentRecord {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  image: StoredImagePayload;
+  thumbnail: StoredImagePayload;
+}
+
 interface FramingDBSchema extends DBSchema {
   projects: {
     key: string;
@@ -28,6 +41,11 @@ interface FramingDBSchema extends DBSchema {
     key: string;
     value: FrameProfileRecord;
     indexes: { bySavedAt: number };
+  };
+  environments: {
+    key: string;
+    value: EnvironmentRecord;
+    indexes: { byUpdatedAt: number };
   };
 }
 
@@ -46,6 +64,12 @@ export function getDb(): Promise<IDBPDatabase<FramingDBSchema>> {
             keyPath: "id",
           });
           store.createIndex("bySavedAt", "savedAt");
+        }
+        if (!database.objectStoreNames.contains("environments")) {
+          const store = database.createObjectStore("environments", {
+            keyPath: "id",
+          });
+          store.createIndex("byUpdatedAt", "updatedAt");
         }
       },
     });
