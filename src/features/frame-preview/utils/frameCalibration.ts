@@ -226,117 +226,89 @@ export interface ResolvedRailStrip {
   sourceY: number;
   sourceLength: number;
   sourceThickness: number;
+  lengthAlongX: boolean;
   scale: number;
   tileLength: number;
   tileThickness: number;
+}
+
+export function resolveMasterRailStrip(
+  strip: { x: number; y: number; width: number; height: number },
+  frameThicknessPx: number,
+): ResolvedRailStrip {
+  const lengthAlongX = strip.width >= strip.height;
+  const sourceLength = lengthAlongX ? strip.width : strip.height;
+  const sourceThickness = lengthAlongX ? strip.height : strip.width;
+  const scale = frameThicknessPx / Math.max(sourceThickness, 1);
+
+  return {
+    sourceX: strip.x,
+    sourceY: strip.y,
+    sourceLength,
+    sourceThickness,
+    lengthAlongX,
+    scale,
+    tileLength: sourceLength * scale,
+    tileThickness: frameThicknessPx,
+  };
 }
 
 export function resolveHorizontalRailStrip(
   strip: { x: number; y: number; width: number; height: number },
   frameThicknessPx: number,
 ): ResolvedRailStrip {
-  let sourceLength = strip.width;
-  let sourceThickness = strip.height;
-
-  if (strip.height > strip.width) {
-    sourceLength = strip.height;
-    sourceThickness = strip.width;
-  }
-
-  const scale = frameThicknessPx / Math.max(sourceThickness, 1);
-
-  return {
-    sourceX: strip.x,
-    sourceY: strip.y,
-    sourceLength,
-    sourceThickness,
-    scale,
-    tileLength: sourceLength * scale,
-    tileThickness: frameThicknessPx,
-  };
+  return resolveMasterRailStrip(strip, frameThicknessPx);
 }
 
 export function resolveVerticalRailStrip(
   strip: { x: number; y: number; width: number; height: number },
   frameThicknessPx: number,
 ): ResolvedRailStrip {
-  let sourceLength = strip.height;
-  let sourceThickness = strip.width;
-
-  if (strip.width > strip.height) {
-    sourceLength = strip.width;
-    sourceThickness = strip.height;
-  }
-
-  const scale = frameThicknessPx / Math.max(sourceThickness, 1);
-
-  return {
-    sourceX: strip.x,
-    sourceY: strip.y,
-    sourceLength,
-    sourceThickness,
-    scale,
-    tileLength: sourceLength * scale,
-    tileThickness: frameThicknessPx,
-  };
+  return resolveMasterRailStrip(strip, frameThicknessPx);
 }
 
-export type StripOrientation = "horizontal" | "vertical";
-
-const RAIL_SIDE_INDEX: Record<RailSourceSide, number> = {
-  top: 0,
-  right: 1,
-  bottom: 2,
-  left: 3,
-};
-
-export interface RailSideDrawParams {
+export interface RailTransform {
   rotation: CornerRotation;
   flipX: boolean;
   flipY: boolean;
   tileAlong: "horizontal" | "vertical";
 }
 
-const HORIZONTAL_STRIP_SIDE_PARAMS: Record<number, RailSideDrawParams> = {
-  0: { rotation: 0, flipX: false, flipY: false, tileAlong: "horizontal" },
-  1: { rotation: 90, flipX: false, flipY: false, tileAlong: "vertical" },
-  2: { rotation: 180, flipX: false, flipY: true, tileAlong: "horizontal" },
-  3: { rotation: 270, flipX: false, flipY: false, tileAlong: "vertical" },
-};
-
-const VERTICAL_STRIP_SIDE_PARAMS: Record<number, RailSideDrawParams> = {
-  0: { rotation: 0, flipX: false, flipY: false, tileAlong: "vertical" },
-  1: { rotation: 90, flipX: false, flipY: false, tileAlong: "horizontal" },
-  2: { rotation: 180, flipX: true, flipY: false, tileAlong: "vertical" },
-  3: { rotation: 270, flipX: false, flipY: false, tileAlong: "horizontal" },
-};
-
-export function getRailSideDrawParams(
-  stripOrientation: StripOrientation,
-  declaredSide: RailSourceSide,
+export function getRailTransform(
+  sourceSide: RailSourceSide,
   targetSide: RailSourceSide,
-): RailSideDrawParams {
-  const steps = (RAIL_SIDE_INDEX[targetSide] - RAIL_SIDE_INDEX[declaredSide] + 4) % 4;
-  const table =
-    stripOrientation === "horizontal"
-      ? HORIZONTAL_STRIP_SIDE_PARAMS
-      : VERTICAL_STRIP_SIDE_PARAMS;
+): RailTransform {
+  const steps = (RAIL_SIDE_INDEX[targetSide] - RAIL_SIDE_INDEX[sourceSide] + 4) % 4;
+  const rotation = (steps * 90) as CornerRotation;
+  const tileAlong: "horizontal" | "vertical" =
+    targetSide === "top" || targetSide === "bottom" ? "horizontal" : "vertical";
 
-  return table[steps];
-}
+  let flipX = false;
+  let flipY = false;
 
-export function toCornerTransform(params: RailSideDrawParams): CornerTransform {
-  return {
-    rotation: params.rotation,
-    flipX: params.flipX,
-    flipY: params.flipY,
-  };
+  if (steps === 2) {
+    if (sourceSide === "left" || sourceSide === "right") {
+      flipX = true;
+    } else {
+      flipY = true;
+    }
+  } else if (steps === 1) {
+    if (sourceSide === "left" || sourceSide === "right") {
+      flipY = true;
+    } else {
+      flipX = true;
+    }
+  }
+
+  return { rotation, flipX, flipY, tileAlong };
 }
 
 export interface CalibratedRailDrawPlan {
   resolved: ResolvedRailStrip;
-  transform: CornerTransform;
-  tileAlong: "horizontal" | "vertical";
+  transform: RailTransform;
+  sourceSide: RailSourceSide;
+  targetSide: RailSourceSide;
+  unifiedMaster: boolean;
 }
 
 export function getCalibratedRailDrawPlan(
@@ -351,31 +323,19 @@ export function getCalibratedRailDrawPlan(
   const isHorizontalRail = targetRail === "top" || targetRail === "bottom";
   const frameThicknessPx = isHorizontalRail ? framePxV : framePxH;
 
-  if (calibration.railSourceMode === "horizontal-all") {
-    const sideParams = getRailSideDrawParams(
-      "horizontal",
-      calibration.railSourceSide,
-      targetRail,
-    );
+  if (calibration.railSourceMode !== "separate") {
+    const masterStripPx =
+      calibration.railSourceMode === "vertical-all"
+        ? verticalStripPx
+        : horizontalStripPx;
+    const transform = getRailTransform(calibration.railSourceSide, targetRail);
 
     return {
-      resolved: resolveHorizontalRailStrip(horizontalStripPx, frameThicknessPx),
-      transform: toCornerTransform(sideParams),
-      tileAlong: sideParams.tileAlong,
-    };
-  }
-
-  if (calibration.railSourceMode === "vertical-all") {
-    const sideParams = getRailSideDrawParams(
-      "vertical",
-      calibration.railSourceSide,
-      targetRail,
-    );
-
-    return {
-      resolved: resolveVerticalRailStrip(verticalStripPx, frameThicknessPx),
-      transform: toCornerTransform(sideParams),
-      tileAlong: sideParams.tileAlong,
+      resolved: resolveMasterRailStrip(masterStripPx, frameThicknessPx),
+      transform,
+      sourceSide: calibration.railSourceSide,
+      targetSide: targetRail,
+      unifiedMaster: true,
     };
   }
 
@@ -383,20 +343,62 @@ export function getCalibratedRailDrawPlan(
     const flip = getRailFlipFromSourceCorner(sourceCorner, targetRail);
 
     return {
-      resolved: resolveHorizontalRailStrip(horizontalStripPx, frameThicknessPx),
-      transform: { rotation: 0, flipX: flip.flipX, flipY: flip.flipY },
-      tileAlong: "horizontal",
+      resolved: resolveMasterRailStrip(horizontalStripPx, frameThicknessPx),
+      transform: {
+        rotation: 0,
+        flipX: flip.flipX,
+        flipY: flip.flipY,
+        tileAlong: "horizontal",
+      },
+      sourceSide: targetRail,
+      targetSide: targetRail,
+      unifiedMaster: false,
     };
   }
 
   const flip = getRailFlipFromSourceCorner(sourceCorner, targetRail);
 
   return {
-    resolved: resolveVerticalRailStrip(verticalStripPx, frameThicknessPx),
-    transform: { rotation: 0, flipX: flip.flipX, flipY: flip.flipY },
-    tileAlong: "vertical",
+    resolved: resolveMasterRailStrip(verticalStripPx, frameThicknessPx),
+    transform: {
+      rotation: 0,
+      flipX: flip.flipX,
+      flipY: flip.flipY,
+      tileAlong: "vertical",
+    },
+    sourceSide: targetRail,
+    targetSide: targetRail,
+    unifiedMaster: false,
   };
 }
+
+export function getMasterStripSourceRect(
+  master: ResolvedRailStrip,
+  srcLength: number,
+): { x: number; y: number; width: number; height: number } {
+  if (master.lengthAlongX) {
+    return {
+      x: master.sourceX,
+      y: master.sourceY,
+      width: srcLength,
+      height: master.sourceThickness,
+    };
+  }
+
+  return {
+    x: master.sourceX,
+    y: master.sourceY,
+    width: master.sourceThickness,
+    height: srcLength,
+  };
+}
+
+const RAIL_SIDE_INDEX: Record<RailSourceSide, number> = {
+  top: 0,
+  right: 1,
+  bottom: 2,
+  left: 3,
+};
 
 export const RAIL_SOURCE_MODE_OPTIONS: RailSourceMode[] = [
   "separate",
