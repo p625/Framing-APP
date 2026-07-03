@@ -93,6 +93,16 @@ export function FreeCropEditor({
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(
     null,
   );
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
 
   useEffect(() => {
     onCropAreaChangeRef.current = onCropAreaChange;
@@ -299,34 +309,36 @@ export function FreeCropEditor({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || containerSize.width === 0) return;
 
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
+      event.stopPropagation();
+
       const rect = container.getBoundingClientRect();
       const localX = event.clientX - rect.left;
       const localY = event.clientY - rect.top;
+      const result = applyWheelZoom(
+        zoomRef.current,
+        event.deltaY,
+        localX,
+        localY,
+        container.clientWidth,
+        container.clientHeight,
+        panRef.current.x,
+        panRef.current.y,
+      );
 
-      setZoom((currentZoom) => {
-        const result = applyWheelZoom(
-          currentZoom,
-          event.deltaY,
-          localX,
-          localY,
-          container.clientWidth,
-          container.clientHeight,
-          pan.x,
-          pan.y,
-        );
-        setPan({ x: result.panX, y: result.panY });
-        return result.zoom;
-      });
+      zoomRef.current = result.zoom;
+      panRef.current = { x: result.panX, y: result.panY };
+      setZoom(result.zoom);
+      setPan({ x: result.panX, y: result.panY });
     };
 
-    container.addEventListener("wheel", handleWheel, { passive: false });
+    container.addEventListener("wheel", handleWheel, { passive: false, capture: true });
 
-    return () => container.removeEventListener("wheel", handleWheel);
-  }, [pan.x, pan.y]);
+    return () => container.removeEventListener("wheel", handleWheel, { capture: true });
+  }, [containerSize.height, containerSize.width]);
 
   useEffect(() => {
     if (!isPanning) return;
@@ -488,6 +500,7 @@ export function FreeCropEditor({
       <div
         ref={containerRef}
         className="relative h-56 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900"
+        style={{ overscrollBehavior: "contain" }}
         onPointerDown={(event) => {
           if (event.button !== 0 || dragMode) return;
           if ((event.target as HTMLElement).closest("button")) return;
@@ -503,7 +516,7 @@ export function FreeCropEditor({
         }}
       >
         <div
-          className="absolute inset-0"
+          className="pointer-events-none absolute inset-0"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: "center center",

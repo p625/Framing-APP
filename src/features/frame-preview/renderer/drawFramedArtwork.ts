@@ -8,8 +8,13 @@ import type {
 } from "../framing.types";
 import {
   denormalizeRect,
+  detectPhotographedCorner,
   getCalibratedCornerSource,
+  getCornerFlipForFramePosition,
+  getRailFlips,
   isFrameCornerCalibrationComplete,
+  type AxisFlip,
+  type CornerQuadrant,
 } from "../utils/frameCalibration";
 
 const BACKGROUND_COLOR = "#e8e8ec";
@@ -305,9 +310,57 @@ function drawRailStrip(
   sourceY: number,
   sourceW: number,
   sourceH: number,
+  flip: AxisFlip = { flipX: false, flipY: false },
 ): void {
   if (width <= 0 || height <= 0) return;
-  ctx.drawImage(image, sourceX, sourceY, sourceW, sourceH, x, y, width, height);
+
+  if (!flip.flipX && !flip.flipY) {
+    ctx.drawImage(image, sourceX, sourceY, sourceW, sourceH, x, y, width, height);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(x + width / 2, y + height / 2);
+  ctx.scale(flip.flipX ? -1 : 1, flip.flipY ? -1 : 1);
+  ctx.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceW,
+    sourceH,
+    -width / 2,
+    -height / 2,
+    width,
+    height,
+  );
+  ctx.restore();
+}
+
+function drawOrientedCornerPatch(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  source: { x: number; y: number; width: number; height: number },
+  flip: AxisFlip,
+): void {
+  ctx.save();
+  ctx.translate(x + width / 2, y + height / 2);
+  ctx.scale(flip.flipX ? -1 : 1, flip.flipY ? -1 : 1);
+  ctx.drawImage(
+    image,
+    source.x,
+    source.y,
+    source.width,
+    source.height,
+    -width / 2,
+    -height / 2,
+    width,
+    height,
+  );
+  ctx.restore();
 }
 
 function drawCalibratedCornerSampleFrame(
@@ -333,6 +386,11 @@ function drawCalibratedCornerSampleFrame(
   );
   const verticalStrip = denormalizeRect(calibration.verticalStrip, imgW, imgH);
   const cornerSource = getCalibratedCornerSource(calibration, imgW, imgH);
+  const photoCorner = detectPhotographedCorner(
+    calibration.innerCorner,
+    calibration.outerCorner,
+  );
+  const railFlips = getRailFlips(photoCorner);
 
   for (const rail of rails) {
     fillRailSolid(ctx, rail, fallbackColor);
@@ -354,6 +412,7 @@ function drawCalibratedCornerSampleFrame(
     horizontalStrip.y,
     horizontalStrip.width,
     horizontalStrip.height,
+    railFlips.top,
   );
   drawRailStrip(
     ctx,
@@ -366,6 +425,7 @@ function drawCalibratedCornerSampleFrame(
     horizontalStrip.y,
     horizontalStrip.width,
     horizontalStrip.height,
+    railFlips.bottom,
   );
   drawRailStrip(
     ctx,
@@ -378,6 +438,7 @@ function drawCalibratedCornerSampleFrame(
     verticalStrip.y,
     verticalStrip.width,
     verticalStrip.height,
+    railFlips.left,
   );
   drawRailStrip(
     ctx,
@@ -390,31 +451,28 @@ function drawCalibratedCornerSampleFrame(
     verticalStrip.y,
     verticalStrip.width,
     verticalStrip.height,
+    railFlips.right,
   );
 
-  const patches = [
-    { x: ox, y: oy, flipX: false, flipY: false },
-    { x: outerRight - cornerW, y: oy, flipX: true, flipY: false },
-    { x: outerRight - cornerW, y: outerBottom - cornerH, flipX: true, flipY: true },
-    { x: ox, y: outerBottom - cornerH, flipX: false, flipY: true },
+  const frameCorners: { corner: CornerQuadrant; x: number; y: number }[] = [
+    { corner: "top-left", x: ox, y: oy },
+    { corner: "top-right", x: outerRight - cornerW, y: oy },
+    { corner: "bottom-right", x: outerRight - cornerW, y: outerBottom - cornerH },
+    { corner: "bottom-left", x: ox, y: outerBottom - cornerH },
   ];
 
-  for (const patch of patches) {
-    ctx.save();
-    ctx.translate(patch.x + cornerW / 2, patch.y + cornerH / 2);
-    ctx.scale(patch.flipX ? -1 : 1, patch.flipY ? -1 : 1);
-    ctx.drawImage(
+  for (const patch of frameCorners) {
+    const flip = getCornerFlipForFramePosition(photoCorner, patch.corner);
+    drawOrientedCornerPatch(
+      ctx,
       cornerImage,
-      cornerSource.x,
-      cornerSource.y,
-      cornerSource.width,
-      cornerSource.height,
-      -cornerW / 2,
-      -cornerH / 2,
+      patch.x,
+      patch.y,
       cornerW,
       cornerH,
+      cornerSource,
+      flip,
     );
-    ctx.restore();
   }
 }
 
@@ -435,6 +493,8 @@ function drawCornerSampleFrame(
   const imgH = cornerImage.naturalHeight;
   const stripSourceW = Math.max(1, Math.floor(imgW * 0.15));
   const stripSourceH = Math.max(1, Math.floor(imgH * 0.15));
+  const photoCorner: CornerQuadrant = "top-left";
+  const railFlips = getRailFlips(photoCorner);
 
   for (const rail of rails) {
     fillRailSolid(ctx, rail, fallbackColor);
@@ -456,6 +516,7 @@ function drawCornerSampleFrame(
     0,
     imgW - stripSourceW * 2,
     stripSourceH,
+    railFlips.top,
   );
   drawRailStrip(
     ctx,
@@ -468,6 +529,7 @@ function drawCornerSampleFrame(
     imgH - stripSourceH,
     imgW - stripSourceW * 2,
     stripSourceH,
+    railFlips.bottom,
   );
   drawRailStrip(
     ctx,
@@ -480,6 +542,7 @@ function drawCornerSampleFrame(
     stripSourceH,
     stripSourceW,
     imgH - stripSourceH * 2,
+    railFlips.left,
   );
   drawRailStrip(
     ctx,
@@ -492,19 +555,21 @@ function drawCornerSampleFrame(
     stripSourceH,
     stripSourceW,
     imgH - stripSourceH * 2,
+    railFlips.right,
   );
 
-  const patches = [
-    { x: ox, y: oy, flipX: false, flipY: false },
-    { x: outerRight - cornerW, y: oy, flipX: true, flipY: false },
-    { x: outerRight - cornerW, y: outerBottom - cornerH, flipX: true, flipY: true },
-    { x: ox, y: outerBottom - cornerH, flipX: false, flipY: true },
+  const frameCorners: { corner: CornerQuadrant; x: number; y: number }[] = [
+    { corner: "top-left", x: ox, y: oy },
+    { corner: "top-right", x: outerRight - cornerW, y: oy },
+    { corner: "bottom-right", x: outerRight - cornerW, y: outerBottom - cornerH },
+    { corner: "bottom-left", x: ox, y: outerBottom - cornerH },
   ];
 
-  for (const patch of patches) {
+  for (const patch of frameCorners) {
+    const flip = getCornerFlipForFramePosition(photoCorner, patch.corner);
     ctx.save();
     ctx.translate(patch.x + cornerW / 2, patch.y + cornerH / 2);
-    ctx.scale(patch.flipX ? -1 : 1, patch.flipY ? -1 : 1);
+    ctx.scale(flip.flipX ? -1 : 1, flip.flipY ? -1 : 1);
     ctx.drawImage(cornerImage, -cornerW / 2, -cornerH / 2, cornerW, cornerH);
     ctx.restore();
   }

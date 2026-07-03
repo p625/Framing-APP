@@ -1,4 +1,69 @@
-import type { FrameCornerCalibration, NormalizedRect } from "../framing.types";
+import type { FrameCornerCalibration, NormalizedRect, Point } from "../framing.types";
+
+export type CornerQuadrant = "top-left" | "top-right" | "bottom-right" | "bottom-left";
+
+const CORNER_INDEX: Record<CornerQuadrant, number> = {
+  "top-left": 0,
+  "top-right": 1,
+  "bottom-right": 2,
+  "bottom-left": 3,
+};
+
+export interface AxisFlip {
+  flipX: boolean;
+  flipY: boolean;
+}
+
+export function detectPhotographedCorner(inner: Point, outer: Point): CornerQuadrant {
+  if (inner.x >= outer.x && inner.y >= outer.y) {
+    return "top-left";
+  }
+
+  if (inner.x < outer.x && inner.y >= outer.y) {
+    return "top-right";
+  }
+
+  if (inner.x >= outer.x && inner.y < outer.y) {
+    return "bottom-left";
+  }
+
+  return "bottom-right";
+}
+
+export function getCornerFlipForFramePosition(
+  photoCorner: CornerQuadrant,
+  frameCorner: CornerQuadrant,
+): AxisFlip {
+  const rotation = (CORNER_INDEX[frameCorner] - CORNER_INDEX[photoCorner] + 4) % 4;
+
+  switch (rotation) {
+    case 1:
+      return { flipX: true, flipY: false };
+    case 2:
+      return { flipX: true, flipY: true };
+    case 3:
+      return { flipX: false, flipY: true };
+    default:
+      return { flipX: false, flipY: false };
+  }
+}
+
+export function getRailFlips(photoCorner: CornerQuadrant): Record<
+  "top" | "bottom" | "left" | "right",
+  AxisFlip
+> {
+  const isTopPhoto =
+    photoCorner === "top-left" || photoCorner === "top-right";
+  const isLeftPhoto =
+    photoCorner === "top-left" || photoCorner === "bottom-left";
+
+  return {
+    top: { flipX: false, flipY: !isTopPhoto },
+    bottom: { flipX: false, flipY: isTopPhoto },
+    left: { flipX: !isLeftPhoto, flipY: false },
+    right: { flipX: isLeftPhoto, flipY: false },
+  };
+}
 
 export function isFrameCornerCalibrationComplete(
   calibration: FrameCornerCalibration | null,
@@ -39,16 +104,36 @@ export function getCalibratedCornerSource(
   const innerY = calibration.innerCorner.y * imageHeight;
   const outerX = calibration.outerCorner.x * imageWidth;
   const outerY = calibration.outerCorner.y * imageHeight;
+  const photoCorner = detectPhotographedCorner(
+    calibration.innerCorner,
+    calibration.outerCorner,
+  );
+  const size = Math.max(Math.abs(innerX - outerX), Math.abs(innerY - outerY), 1);
 
-  const minX = Math.min(innerX, outerX);
-  const minY = Math.min(innerY, outerY);
-  const maxX = Math.max(innerX, outerX);
-  const maxY = Math.max(innerY, outerY);
-  const size = Math.max(maxX - minX, maxY - minY, 1);
+  let x = outerX;
+  let y = outerY;
+
+  switch (photoCorner) {
+    case "top-right":
+      x = outerX - size;
+      break;
+    case "bottom-left":
+      y = outerY - size;
+      break;
+    case "bottom-right":
+      x = outerX - size;
+      y = outerY - size;
+      break;
+    default:
+      break;
+  }
+
+  x = Math.max(0, Math.min(x, imageWidth - size));
+  y = Math.max(0, Math.min(y, imageHeight - size));
 
   return {
-    x: minX,
-    y: minY,
+    x,
+    y,
     width: size,
     height: size,
   };

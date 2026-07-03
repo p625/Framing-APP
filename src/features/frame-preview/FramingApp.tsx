@@ -44,8 +44,8 @@ export function FramingApp() {
       <header className="border-b border-zinc-200 bg-white px-6 py-4">
         <h1 className="text-lg font-semibold text-zinc-900">Frame Preview</h1>
         <p className="text-sm text-zinc-500">
-          First straighten the photographed artwork, then crop the final image area.
-          Size in cm is used only for real-world proportions during framing.
+          Straighten and crop the artwork first, then choose a frame sample and calibrate
+          its corner before setting final sizes.
         </p>
       </header>
 
@@ -87,14 +87,7 @@ export function FramingApp() {
             />
           </WorkflowSection>
 
-          <WorkflowSection step={4} title="Final artwork size">
-            <SizeInputs
-              canvasSize={framing.canvasSize}
-              onCanvasSizeChange={framing.setCanvasSize}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={5} title="Select frame sample">
+          <WorkflowSection step={4} title="Select frame sample">
             <FrameSelector
               selectedFrameId={framing.selectedFrameId}
               onFrameSelect={(id) => {
@@ -108,7 +101,7 @@ export function FramingApp() {
             />
           </WorkflowSection>
 
-          <WorkflowSection step={6} title="Upload frame sample">
+          <WorkflowSection step={5} title="Upload frame & calibrate corner">
             <FrameUploader
               customFrameFile={framing.customFrameFile}
               customFrameTextureUrl={framing.customFrameTextureUrl}
@@ -123,10 +116,17 @@ export function FramingApp() {
             />
           </WorkflowSection>
 
-          <WorkflowSection step={7} title="Set frame width">
+          <WorkflowSection step={6} title="Set frame width">
             <FrameWidthInput
               frameWidthCm={framing.frameWidthCm}
               onFrameWidthChange={framing.setFrameWidthCm}
+            />
+          </WorkflowSection>
+
+          <WorkflowSection step={7} title="Final artwork size">
+            <SizeInputs
+              canvasSize={framing.canvasSize}
+              onCanvasSizeChange={framing.setCanvasSize}
             />
           </WorkflowSection>
 
