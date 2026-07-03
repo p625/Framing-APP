@@ -95,6 +95,91 @@ export function denormalizeRect(
   };
 }
 
+export interface ResolvedRailStrip {
+  sourceX: number;
+  sourceY: number;
+  sourceLength: number;
+  sourceThickness: number;
+  scale: number;
+  tileLength: number;
+  tileThickness: number;
+  innerTowardPositiveThickness: boolean;
+}
+
+export function resolveHorizontalRailStrip(
+  strip: { x: number; y: number; width: number; height: number },
+  frameThicknessPx: number,
+  inner: Point,
+  outer: Point,
+): ResolvedRailStrip {
+  let sourceLength = strip.width;
+  let sourceThickness = strip.height;
+
+  if (strip.height > strip.width) {
+    sourceLength = strip.height;
+    sourceThickness = strip.width;
+  }
+
+  const scale = frameThicknessPx / Math.max(sourceThickness, 1);
+
+  return {
+    sourceX: strip.x,
+    sourceY: strip.y,
+    sourceLength,
+    sourceThickness,
+    scale,
+    tileLength: sourceLength * scale,
+    tileThickness: frameThicknessPx,
+    innerTowardPositiveThickness: inner.y > outer.y,
+  };
+}
+
+export function resolveVerticalRailStrip(
+  strip: { x: number; y: number; width: number; height: number },
+  frameThicknessPx: number,
+  inner: Point,
+  outer: Point,
+): ResolvedRailStrip {
+  let sourceLength = strip.height;
+  let sourceThickness = strip.width;
+
+  if (strip.width > strip.height) {
+    sourceLength = strip.width;
+    sourceThickness = strip.height;
+  }
+
+  const scale = frameThicknessPx / Math.max(sourceThickness, 1);
+
+  return {
+    sourceX: strip.x,
+    sourceY: strip.y,
+    sourceLength,
+    sourceThickness,
+    scale,
+    tileLength: sourceLength * scale,
+    tileThickness: frameThicknessPx,
+    innerTowardPositiveThickness: inner.x > outer.x,
+  };
+}
+
+export function getCalibratedRailFlip(
+  railId: "top" | "bottom" | "left" | "right",
+  innerTowardPositiveThickness: boolean,
+): AxisFlip {
+  switch (railId) {
+    case "top":
+      return { flipX: false, flipY: !innerTowardPositiveThickness };
+    case "bottom":
+      return { flipX: false, flipY: innerTowardPositiveThickness };
+    case "left":
+      return { flipX: !innerTowardPositiveThickness, flipY: false };
+    case "right":
+      return { flipX: innerTowardPositiveThickness, flipY: false };
+    default:
+      return { flipX: false, flipY: false };
+  }
+}
+
 export function getCalibratedCornerSource(
   calibration: FrameCornerCalibration,
   imageWidth: number,
@@ -137,19 +222,4 @@ export function getCalibratedCornerSource(
     width: size,
     height: size,
   };
-}
-
-export function computeCalibrationRenderScale(
-  calibration: FrameCornerCalibration,
-  imageWidth: number,
-  imageHeight: number,
-  cornerRenderSizePx: number,
-): number {
-  const cornerSource = getCalibratedCornerSource(
-    calibration,
-    imageWidth,
-    imageHeight,
-  );
-
-  return cornerRenderSizePx / Math.max(cornerSource.width, 1);
 }

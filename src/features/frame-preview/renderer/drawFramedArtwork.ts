@@ -7,15 +7,18 @@ import type {
   Point,
 } from "../framing.types";
 import {
-  computeCalibrationRenderScale,
   denormalizeRect,
   detectPhotographedCorner,
   getCalibratedCornerSource,
+  getCalibratedRailFlip,
   getCornerFlipForFramePosition,
   getRailFlips,
+  resolveHorizontalRailStrip,
+  resolveVerticalRailStrip,
   isFrameCornerCalibrationComplete,
   type AxisFlip,
   type CornerQuadrant,
+  type ResolvedRailStrip,
 } from "../utils/frameCalibration";
 
 const BACKGROUND_COLOR = "#e8e8ec";
@@ -407,6 +410,74 @@ function drawTiledRailStrip(
   ctx.restore();
 }
 
+function drawCalibratedTiledRail(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  rail: FrameRail,
+  resolved: ResolvedRailStrip,
+  flip: AxisFlip,
+  tileAlong: "horizontal" | "vertical",
+): void {
+  const bounds = getPolygonBounds(rail.points);
+  const {
+    sourceX,
+    sourceY,
+    sourceThickness,
+    scale,
+    tileLength,
+    tileThickness,
+  } = resolved;
+
+  ctx.save();
+  ctx.beginPath();
+  tracePolygon(ctx, rail.points);
+  ctx.clip();
+
+  if (tileAlong === "horizontal") {
+    let x = bounds.x;
+    while (x < bounds.x + bounds.width - 0.5) {
+      const drawW = Math.min(tileLength, bounds.x + bounds.width - x);
+      const srcW = drawW / scale;
+      drawRailTile(
+        ctx,
+        image,
+        x,
+        bounds.y,
+        drawW,
+        tileThickness,
+        sourceX,
+        sourceY,
+        srcW,
+        sourceThickness,
+        flip,
+      );
+      x += tileLength;
+    }
+  } else {
+    let y = bounds.y;
+    while (y < bounds.y + bounds.height - 0.5) {
+      const drawH = Math.min(tileLength, bounds.y + bounds.height - y);
+      const srcH = drawH / scale;
+      drawRailTile(
+        ctx,
+        image,
+        bounds.x,
+        y,
+        tileThickness,
+        drawH,
+        sourceX,
+        sourceY,
+        sourceThickness,
+        srcH,
+        flip,
+      );
+      y += tileLength;
+    }
+  }
+
+  ctx.restore();
+}
+
 function drawOrientedCornerPatch(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -461,83 +532,44 @@ function drawCalibratedCornerSampleFrame(
     calibration.innerCorner,
     calibration.outerCorner,
   );
-  const railFlips = getRailFlips(photoCorner);
-  const renderScale = computeCalibrationRenderScale(
-    calibration,
-    imgW,
-    imgH,
-    (cornerW + cornerH) / 2,
+  const horizontalResolved = resolveHorizontalRailStrip(
+    horizontalStrip,
+    framePxV,
+    calibration.innerCorner,
+    calibration.outerCorner,
+  );
+  const verticalResolved = resolveVerticalRailStrip(
+    verticalStrip,
+    framePxH,
+    calibration.innerCorner,
+    calibration.outerCorner,
   );
 
   for (const rail of rails) {
     fillRailSolid(ctx, rail, fallbackColor);
   }
 
-  const topStripY = oy;
-  const bottomStripY = outerBottom - framePxV;
-  const leftStripX = ox;
-  const rightStripX = outerRight - framePxH;
-
-  drawTiledRailStrip(
-    ctx,
-    cornerImage,
-    ox + cornerW,
-    topStripY,
-    totalPxW - cornerW * 2,
-    framePxV,
-    horizontalStrip.x,
-    horizontalStrip.y,
-    horizontalStrip.width,
-    horizontalStrip.height,
-    railFlips.top,
-    "horizontal",
-    renderScale,
-  );
-  drawTiledRailStrip(
-    ctx,
-    cornerImage,
-    ox + cornerW,
-    bottomStripY,
-    totalPxW - cornerW * 2,
-    framePxV,
-    horizontalStrip.x,
-    horizontalStrip.y,
-    horizontalStrip.width,
-    horizontalStrip.height,
-    railFlips.bottom,
-    "horizontal",
-    renderScale,
-  );
-  drawTiledRailStrip(
-    ctx,
-    cornerImage,
-    leftStripX,
-    oy + cornerH,
-    framePxH,
-    totalPxH - cornerH * 2,
-    verticalStrip.x,
-    verticalStrip.y,
-    verticalStrip.width,
-    verticalStrip.height,
-    railFlips.left,
-    "vertical",
-    renderScale,
-  );
-  drawTiledRailStrip(
-    ctx,
-    cornerImage,
-    rightStripX,
-    oy + cornerH,
-    framePxH,
-    totalPxH - cornerH * 2,
-    verticalStrip.x,
-    verticalStrip.y,
-    verticalStrip.width,
-    verticalStrip.height,
-    railFlips.right,
-    "vertical",
-    renderScale,
-  );
+  for (const rail of rails) {
+    if (rail.id === "top" || rail.id === "bottom") {
+      drawCalibratedTiledRail(
+        ctx,
+        cornerImage,
+        rail,
+        horizontalResolved,
+        getCalibratedRailFlip(rail.id, horizontalResolved.innerTowardPositiveThickness),
+        "horizontal",
+      );
+    } else {
+      drawCalibratedTiledRail(
+        ctx,
+        cornerImage,
+        rail,
+        verticalResolved,
+        getCalibratedRailFlip(rail.id, verticalResolved.innerTowardPositiveThickness),
+        "vertical",
+      );
+    }
+  }
 
   const frameCorners: { corner: CornerQuadrant; x: number; y: number }[] = [
     { corner: "top-left", x: ox, y: oy },
