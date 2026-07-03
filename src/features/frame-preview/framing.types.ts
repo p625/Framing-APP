@@ -23,6 +23,14 @@ export interface FrameDefinition {
   fallbackColor: string;
 }
 
+export const TEXTURE_SCALE_PRESETS = {
+  small: 0.5,
+  medium: 1,
+  large: 2,
+} as const;
+
+export type TextureScalePreset = keyof typeof TEXTURE_SCALE_PRESETS;
+
 export interface FramingState {
   artworkFile: File | null;
   artworkPreviewUrl: string | null;
@@ -34,6 +42,7 @@ export interface FramingState {
   customFrameTextureUrl: string | null;
   customFrameFile: File | null;
   frameWidthCm: number;
+  textureScale: number;
 }
 
 export interface FramingActions {
@@ -45,6 +54,7 @@ export interface FramingActions {
   setSelectedFrameId: (id: string | null) => void;
   setCustomFrameFile: (file: File | null) => void;
   setFrameWidthCm: (width: number) => void;
+  setTextureScale: (scale: number) => void;
 }
 
 export type UseFramingStateReturn = FramingState & FramingActions;
@@ -62,8 +72,15 @@ export interface FramedLayout {
   artY: number;
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export const DEFAULT_CROP_SETTINGS: CropSettings = {
   crop: { x: 0, y: 0 },
   zoom: 1,
   croppedAreaPixels: null,
 };
+
+export const DEFAULT_TEXTURE_SCALE = TEXTURE_SCALE_PRESETS.medium;

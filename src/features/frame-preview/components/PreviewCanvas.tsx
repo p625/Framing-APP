@@ -15,6 +15,7 @@ interface PreviewCanvasProps {
   frame: FrameDefinition | null;
   customFrameTextureUrl: string | null;
   frameWidthCm: number;
+  textureScale: number;
 }
 
 function useLoadedImage(url: string | null | undefined) {
@@ -57,6 +58,7 @@ export function PreviewCanvas({
   frame,
   customFrameTextureUrl,
   frameWidthCm,
+  textureScale,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const artworkImage = useLoadedImage(artworkImageUrl);
@@ -89,6 +91,7 @@ export function PreviewCanvas({
       frameFallbackColor,
       frameTextureImage,
       frameWidthCm,
+      textureScale,
     });
   }, [
     artworkImage,
@@ -96,6 +99,7 @@ export function PreviewCanvas({
     frameFallbackColor,
     frameTextureImage,
     frameWidthCm,
+    textureScale,
   ]);
 
   useEffect(() => {

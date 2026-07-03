@@ -54,7 +54,10 @@ export function FramingApp() {
           />
           <FrameUploader
             customFrameFile={framing.customFrameFile}
+            customFrameTextureUrl={framing.customFrameTextureUrl}
+            textureScale={framing.textureScale}
             onCustomFrameSelect={framing.setCustomFrameFile}
+            onTextureScaleChange={framing.setTextureScale}
           />
           <FrameWidthInput
             frameWidthCm={framing.frameWidthCm}
@@ -70,6 +73,7 @@ export function FramingApp() {
             frame={selectedFrame}
             customFrameTextureUrl={framing.customFrameTextureUrl}
             frameWidthCm={framing.frameWidthCm}
+            textureScale={framing.textureScale}
           />
         </main>
       </div>

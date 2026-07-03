@@ -1,4 +1,4 @@
-import type { CanvasSize, FramedLayout } from "../framing.types";
+import type { CanvasSize, FramedLayout, Point } from "../framing.types";
 
 const BACKGROUND_COLOR = "#e8e8ec";
 const PLACEHOLDER_ART_COLOR = "#fafafa";
@@ -15,6 +15,12 @@ export interface DrawFramedArtworkOptions {
   frameFallbackColor: string;
   frameTextureImage: HTMLImageElement | null;
   frameWidthCm: number;
+  textureScale: number;
+}
+
+interface FrameRail {
+  id: "top" | "right" | "bottom" | "left";
+  points: Point[];
 }
 
 export function computeFramedLayout(
@@ -65,24 +71,218 @@ export function computeFramedLayout(
   };
 }
 
-function fillFrameBorder(
+function getFrameRails(layout: FramedLayout): FrameRail[] {
+  const {
+    offsetX: ox,
+    offsetY: oy,
+    totalPxW,
+    totalPxH,
+    artX,
+    artY,
+    artworkPxW,
+    artworkPxH,
+  } = layout;
+
+  const outerRight = ox + totalPxW;
+  const outerBottom = oy + totalPxH;
+  const innerRight = artX + artworkPxW;
+  const innerBottom = artY + artworkPxH;
+
+  return [
+    {
+      id: "top",
+      points: [
+        { x: ox, y: oy },
+        { x: outerRight, y: oy },
+        { x: innerRight, y: artY },
+        { x: artX, y: artY },
+      ],
+    },
+    {
+      id: "right",
+      points: [
+        { x: outerRight, y: oy },
+        { x: outerRight, y: outerBottom },
+        { x: innerRight, y: innerBottom },
+        { x: innerRight, y: artY },
+      ],
+    },
+    {
+      id: "bottom",
+      points: [
+        { x: outerRight, y: outerBottom },
+        { x: ox, y: outerBottom },
+        { x: artX, y: innerBottom },
+        { x: innerRight, y: innerBottom },
+      ],
+    },
+    {
+      id: "left",
+      points: [
+        { x: ox, y: outerBottom },
+        { x: ox, y: oy },
+        { x: artX, y: artY },
+        { x: artX, y: innerBottom },
+      ],
+    },
+  ];
+}
+
+function tracePolygon(ctx: CanvasRenderingContext2D, points: Point[]): void {
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let index = 1; index < points.length; index += 1) {
+    ctx.lineTo(points[index].x, points[index].y);
+  }
+  ctx.closePath();
+}
+
+function getPolygonBounds(points: Point[]) {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+function createScaledPattern(
+  ctx: CanvasRenderingContext2D,
+  textureImage: HTMLImageElement,
+  textureScale: number,
+): CanvasPattern | null {
+  const tileWidth = Math.max(1, Math.round(textureImage.naturalWidth * textureScale));
+  const tileHeight = Math.max(1, Math.round(textureImage.naturalHeight * textureScale));
+
+  const tileCanvas = document.createElement("canvas");
+  tileCanvas.width = tileWidth;
+  tileCanvas.height = tileHeight;
+
+  const tileCtx = tileCanvas.getContext("2d");
+  if (!tileCtx) {
+    return null;
+  }
+
+  tileCtx.drawImage(textureImage, 0, 0, tileWidth, tileHeight);
+  return ctx.createPattern(tileCanvas, "repeat");
+}
+
+function createFrameFill(
+  ctx: CanvasRenderingContext2D,
+  frameTextureImage: HTMLImageElement | null,
+  frameFallbackColor: string,
+  textureScale: number,
+): string | CanvasPattern {
+  if (!frameTextureImage) {
+    return frameFallbackColor;
+  }
+
+  const pattern = createScaledPattern(ctx, frameTextureImage, textureScale);
+  return pattern ?? frameFallbackColor;
+}
+
+function fillRail(
+  ctx: CanvasRenderingContext2D,
+  rail: FrameRail,
+  fill: string | CanvasPattern,
+): void {
+  const bounds = getPolygonBounds(rail.points);
+
+  ctx.save();
+  ctx.beginPath();
+  tracePolygon(ctx, rail.points);
+  ctx.clip();
+  ctx.fillStyle = fill;
+  ctx.fillRect(
+    bounds.x - 1,
+    bounds.y - 1,
+    bounds.width + 2,
+    bounds.height + 2,
+  );
+  ctx.restore();
+}
+
+function drawMiteredFrame(
   ctx: CanvasRenderingContext2D,
   layout: FramedLayout,
   fill: string | CanvasPattern,
+  fallbackColor: string,
+  withShadow: boolean,
 ): void {
-  const { offsetX, offsetY, totalPxW, totalPxH, framePxH, framePxV } = layout;
+  const rails = getFrameRails(layout);
 
-  ctx.fillStyle = fill;
+  ctx.save();
 
-  ctx.fillRect(offsetX, offsetY, totalPxW, framePxV);
-  ctx.fillRect(offsetX, offsetY + totalPxH - framePxV, totalPxW, framePxV);
-  ctx.fillRect(offsetX, offsetY + framePxV, framePxH, totalPxH - framePxV * 2);
-  ctx.fillRect(
-    offsetX + totalPxW - framePxH,
-    offsetY + framePxV,
-    framePxH,
-    totalPxH - framePxV * 2,
-  );
+  if (withShadow) {
+    ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
+    ctx.shadowBlur = layout.totalPxW * 0.028;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = layout.totalPxW * 0.014;
+  }
+
+  for (const rail of rails) {
+    ctx.beginPath();
+    tracePolygon(ctx, rail.points);
+    ctx.fillStyle = fallbackColor;
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  if (!withShadow) {
+    for (const rail of rails) {
+      fillRail(ctx, rail, fill);
+    }
+  }
+}
+
+function drawCornerSeams(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+): void {
+  const { offsetX: ox, offsetY: oy, totalPxW, totalPxH, framePxH, framePxV } =
+    layout;
+  const outerRight = ox + totalPxW;
+  const outerBottom = oy + totalPxH;
+  const lineWidth = Math.max(0.5, Math.min(framePxH, framePxV) * 0.045);
+
+  const seams: [Point, Point][] = [
+    [
+      { x: ox + framePxH, y: oy },
+      { x: ox, y: oy + framePxV },
+    ],
+    [
+      { x: outerRight - framePxH, y: oy },
+      { x: outerRight, y: oy + framePxV },
+    ],
+    [
+      { x: outerRight, y: outerBottom - framePxV },
+      { x: outerRight - framePxH, y: outerBottom },
+    ],
+    [
+      { x: ox, y: outerBottom - framePxV },
+      { x: ox + framePxH, y: outerBottom },
+    ],
+  ];
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+  ctx.lineWidth = lineWidth;
+
+  for (const [start, end] of seams) {
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 function drawInnerShadow(
@@ -135,6 +335,7 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     frameFallbackColor,
     frameTextureImage,
     frameWidthCm,
+    textureScale,
   } = options;
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -148,19 +349,16 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     frameWidthCm,
   );
   const scale = layout.totalPxW / 800;
+  const frameFill = createFrameFill(
+    ctx,
+    frameTextureImage,
+    frameFallbackColor,
+    textureScale,
+  );
 
-  const frameFill: string | CanvasPattern =
-    frameTextureImage !== null
-      ? (ctx.createPattern(frameTextureImage, "repeat") ?? frameFallbackColor)
-      : frameFallbackColor;
-
-  ctx.save();
-  ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
-  ctx.shadowBlur = layout.totalPxW * 0.028;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = layout.totalPxW * 0.014;
-  fillFrameBorder(ctx, layout, frameFill);
-  ctx.restore();
+  drawMiteredFrame(ctx, layout, frameFill, frameFallbackColor, true);
+  drawMiteredFrame(ctx, layout, frameFill, frameFallbackColor, false);
+  drawCornerSeams(ctx, layout);
 
   const { artX, artY, artworkPxW, artworkPxH } = layout;
 

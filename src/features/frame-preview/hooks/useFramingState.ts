@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_CROP_SETTINGS,
+  DEFAULT_TEXTURE_SCALE,
   type CanvasSize,
   type CropSettings,
   type UseFramingStateReturn,
@@ -29,6 +30,7 @@ export function useFramingState(): UseFramingStateReturn {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>("oak");
   const [customFrameFile, setCustomFrameFileState] = useState<File | null>(null);
   const [frameWidthCm, setFrameWidthCm] = useState(3);
+  const [textureScale, setTextureScale] = useState<number>(DEFAULT_TEXTURE_SCALE);
 
   const artworkPreviewUrl = useMemo(
     () => (artworkFile ? URL.createObjectURL(artworkFile) : null),
@@ -124,6 +126,7 @@ export function useFramingState(): UseFramingStateReturn {
     customFrameTextureUrl,
     customFrameFile,
     frameWidthCm,
+    textureScale,
     setArtworkFile,
     setCropSettings,
     applyCrop,
@@ -132,5 +135,6 @@ export function useFramingState(): UseFramingStateReturn {
     setSelectedFrameId,
     setCustomFrameFile,
     setFrameWidthCm,
+    setTextureScale,
   };
 }
