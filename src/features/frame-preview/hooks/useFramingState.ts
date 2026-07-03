@@ -179,7 +179,7 @@ export function useFramingState(): UseFramingStateReturn {
     setCustomFrameFileState(file);
     if (file) {
       setSelectedFrameId(null);
-      setFrameCornerCalibrationState(DEFAULT_FRAME_CORNER_CALIBRATION);
+      setFrameCornerCalibrationState(null);
     } else {
       setFrameCornerCalibrationState(null);
     }
@@ -202,6 +202,29 @@ export function useFramingState(): UseFramingStateReturn {
 
   const setMatSettings = useCallback((settings: Partial<MatSettings>) => {
     setMatSettingsState((previous) => ({ ...previous, ...settings }));
+  }, []);
+
+  const resetAll = useCallback(() => {
+    setArtworkFileState(null);
+    setPerspectiveCorners(DEFAULT_PERSPECTIVE_CORNERS);
+    setCorrectedArtworkUrl((previous) => {
+      revokeObjectUrl(previous);
+      return null;
+    });
+    setCropSettingsState(DEFAULT_CROP_SETTINGS);
+    setCroppedArtworkUrl((previous) => {
+      revokeObjectUrl(previous);
+      return null;
+    });
+    setCanvasSizeState(DEFAULT_CANVAS_SIZE);
+    setSelectedFrameId("oak");
+    setCustomFrameFileState(null);
+    setFrameCornerCalibrationState(null);
+    setFrameSampleMode("texture");
+    setFrameWidthCm(3);
+    setTextureScale(DEFAULT_TEXTURE_SCALE);
+    setCropEditorKey(0);
+    setMatSettingsState(DEFAULT_MAT_SETTINGS);
   }, []);
 
   return {
@@ -235,6 +258,7 @@ export function useFramingState(): UseFramingStateReturn {
     setFrameSampleMode,
     setFrameCornerCalibration,
     resetFrameCornerCalibration,
+    resetAll,
     setFrameWidthCm,
     setTextureScale,
     setMatSettings,

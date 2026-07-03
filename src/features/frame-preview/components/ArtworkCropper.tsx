@@ -44,10 +44,12 @@ export function ArtworkCropper({
 
   if (!cropSourceUrl) {
     return (
-      <p className="text-xs text-zinc-500">
-        Upload a photo to begin. After straightening, crop the full corrected image
-        here.
-      </p>
+      <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-center">
+        <p className="text-xs font-medium text-zinc-600">Crop not available yet</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Upload a photo and straighten it first. Then crop the corrected image here.
+        </p>
+      </div>
     );
   }
 

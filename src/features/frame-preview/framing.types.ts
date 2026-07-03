@@ -82,6 +82,7 @@ export interface FramingActions {
   setFrameSampleMode: (mode: FrameSampleMode) => void;
   setFrameCornerCalibration: (calibration: FrameCornerCalibration) => void;
   resetFrameCornerCalibration: () => void;
+  resetAll: () => void;
   setFrameWidthCm: (width: number) => void;
   setTextureScale: (scale: number) => void;
   setMatSettings: (settings: Partial<MatSettings>) => void;

@@ -3,16 +3,19 @@
 import { ArtworkCropper } from "./components/ArtworkCropper";
 import { ArtworkUploader } from "./components/ArtworkUploader";
 import { ExportPanel } from "./components/ExportPanel";
+import { FramingWarnings } from "./components/FramingWarnings";
 import { FrameSelector } from "./components/FrameSelector";
 import { FrameUploader } from "./components/FrameUploader";
 import { FrameWidthInput } from "./components/FrameWidthInput";
 import { MatControls } from "./components/MatControls";
 import { PerspectiveEditor } from "./components/PerspectiveEditor";
 import { PreviewCanvas } from "./components/PreviewCanvas";
+import { ResetAllButton } from "./components/ResetAllButton";
 import { SizeInputs } from "./components/SizeInputs";
 import { WorkflowSection } from "./components/WorkflowSection";
 import { useFramingState } from "./hooks/useFramingState";
 import { SAMPLE_FRAMES } from "./sampleFrames";
+import { isFrameCornerCalibrationComplete } from "./utils/frameCalibration";
 
 export function FramingApp() {
   const framing = useFramingState();
@@ -27,6 +30,15 @@ export function FramingApp() {
     ? framing.frameSampleMode
     : (selectedFrame?.sampleMode ?? framing.frameSampleMode);
 
+  const showNotStraightened = Boolean(
+    framing.artworkFile && !framing.correctedArtworkUrl,
+  );
+  const showMissingCalibration = Boolean(
+    framing.customFrameFile &&
+      frameSampleMode === "corner" &&
+      !isFrameCornerCalibrationComplete(framing.frameCornerCalibration),
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50">
       <header className="border-b border-zinc-200 bg-white px-6 py-4">
@@ -39,6 +51,11 @@ export function FramingApp() {
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 lg:flex-row lg:p-6">
         <aside className="w-full shrink-0 space-y-1 rounded-xl border border-zinc-200 bg-white p-5 lg:w-80 xl:w-96">
+          <FramingWarnings
+            showNotStraightened={showNotStraightened}
+            showMissingCalibration={showMissingCalibration}
+          />
+
           <WorkflowSection step={1} title="Upload artwork photo">
             <ArtworkUploader
               artworkFile={framing.artworkFile}
@@ -123,6 +140,10 @@ export function FramingApp() {
           <WorkflowSection step={9} title="Download preview">
             <ExportPanel />
           </WorkflowSection>
+
+          <div className="pt-2">
+            <ResetAllButton onResetAll={framing.resetAll} />
+          </div>
         </aside>
 
         <main className="min-h-[400px] flex-1">
