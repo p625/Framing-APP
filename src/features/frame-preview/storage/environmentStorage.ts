@@ -1,4 +1,4 @@
-import type { SavedEnvironmentSummary } from "../framing.types";
+import type { EnvironmentCalibration, SavedEnvironmentSummary } from "../framing.types";
 import { createImageThumbnailBlob } from "../utils/createThumbnail";
 import { getDb, type EnvironmentRecord } from "./db";
 import { storedImageFromFile } from "./blobUtils";
@@ -12,6 +12,7 @@ export async function listSavedEnvironments(): Promise<SavedEnvironmentSummary[]
       id: record.id,
       name: record.name,
       updatedAt: record.updatedAt,
+      hasCalibration: Boolean(record.calibration),
     }));
 }
 
@@ -24,7 +25,11 @@ async function findEnvironmentByName(
   return records.find((record) => record.name.trim().toLowerCase() === normalized);
 }
 
-export async function saveEnvironment(name: string, file: File): Promise<string> {
+export async function saveEnvironment(
+  name: string,
+  file: File,
+  calibration: EnvironmentCalibration | null = null,
+): Promise<string> {
   const trimmedName = name.trim();
   if (!trimmedName) {
     throw new Error("Environment name is required");
@@ -44,6 +49,7 @@ export async function saveEnvironment(name: string, file: File): Promise<string>
     updatedAt: now,
     image: storedImageFromFile(file),
     thumbnail: storedImageFromFile(thumbnailFile),
+    calibration: calibration ?? existing?.calibration ?? null,
   };
 
   const db = await getDb();
@@ -53,7 +59,11 @@ export async function saveEnvironment(name: string, file: File): Promise<string>
 
 export async function loadEnvironment(
   id: string,
-): Promise<{ name: string; imageUrl: string } | null> {
+): Promise<{
+  name: string;
+  imageUrl: string;
+  calibration: EnvironmentCalibration | null;
+} | null> {
   const db = await getDb();
   const record = await db.get("environments", id);
   if (!record) {
@@ -63,7 +73,25 @@ export async function loadEnvironment(
   return {
     name: record.name,
     imageUrl: URL.createObjectURL(record.image.blob),
+    calibration: record.calibration ?? null,
   };
+}
+
+export async function updateEnvironmentCalibration(
+  id: string,
+  calibration: EnvironmentCalibration,
+): Promise<void> {
+  const db = await getDb();
+  const record = await db.get("environments", id);
+  if (!record) {
+    throw new Error("Environment not found");
+  }
+
+  await db.put("environments", {
+    ...record,
+    calibration,
+    updatedAt: Date.now(),
+  });
 }
 
 export async function deleteEnvironment(id: string): Promise<void> {
@@ -90,6 +118,14 @@ export async function renameEnvironment(id: string, name: string): Promise<void>
   });
 }
 
+export async function getEnvironmentCalibration(
+  id: string,
+): Promise<EnvironmentCalibration | null> {
+  const db = await getDb();
+  const record = await db.get("environments", id);
+  return record?.calibration ?? null;
+}
+
 export async function getEnvironmentThumbnailUrl(id: string): Promise<string | null> {
   const db = await getDb();
   const record = await db.get("environments", id);
@@ -98,4 +134,14 @@ export async function getEnvironmentThumbnailUrl(id: string): Promise<string | n
   }
 
   return URL.createObjectURL(record.thumbnail.blob);
+}
+
+export async function getEnvironmentImageUrl(id: string): Promise<string | null> {
+  const db = await getDb();
+  const record = await db.get("environments", id);
+  if (!record) {
+    return null;
+  }
+
+  return URL.createObjectURL(record.image.blob);
 }

@@ -58,9 +58,14 @@ export interface FramingState {
   croppedArtworkUrl: string | null;
   cropEditorKey: number;
   canvasSize: CanvasSize;
+  lockCanvasAspectRatio: boolean;
+  artworkAspectRatio: number | null;
   selectedFrameId: string | null;
   customFrameTextureUrl: string | null;
+  customFrameOriginalUrl: string | null;
+  correctedCustomFrameUrl: string | null;
   customFrameFile: File | null;
+  frameSamplePerspectiveCorners: PerspectiveCorners;
   frameSampleMode: FrameSampleMode;
   frameCornerCalibration: FrameCornerCalibration | null;
   frameWidthCm: number;
@@ -78,8 +83,12 @@ export interface FramingActions {
   applyCrop: () => Promise<void>;
   resetCrop: () => void;
   setCanvasSize: (size: Partial<CanvasSize>) => void;
+  setLockCanvasAspectRatio: (locked: boolean) => void;
   setSelectedFrameId: (id: string | null) => void;
   setCustomFrameFile: (file: File | null) => void;
+  setFrameSamplePerspectiveCorners: (corners: PerspectiveCorners) => void;
+  straightenCustomFrame: () => Promise<void>;
+  resetCustomFramePerspective: () => void;
   setFrameSampleMode: (mode: FrameSampleMode) => void;
   setFrameCornerCalibration: (calibration: FrameCornerCalibration) => void;
   resetFrameCornerCalibration: () => void;
@@ -204,6 +213,7 @@ export interface SerializableProject {
   perspectiveCorners: PerspectiveCorners;
   cropSettings: CropSettings;
   canvasSize: CanvasSize;
+  lockCanvasAspectRatio?: boolean;
   selectedFrameId: string | null;
   frameSampleMode: FrameSampleMode;
   frameCornerCalibration: FrameCornerCalibration | null;
@@ -243,20 +253,28 @@ export interface SavedEnvironmentSummary {
   id: string;
   name: string;
   updatedAt: number;
+  hasCalibration?: boolean;
+}
+
+export interface EnvironmentCalibration {
+  wallRect: NormalizedRect;
+  realWallWidthCm: number;
+  realWallHeightCm: number;
 }
 
 export interface EnvironmentPlacement {
   x: number;
   y: number;
-  scale: number;
-  rotation: number;
+  fineScale: number;
 }
+
+export const ENVIRONMENT_FINE_SCALE_MIN = 0.95;
+export const ENVIRONMENT_FINE_SCALE_MAX = 1.05;
 
 export const DEFAULT_ENVIRONMENT_PLACEMENT: EnvironmentPlacement = {
   x: 50,
-  y: 44,
-  scale: 0.52,
-  rotation: 0,
+  y: 45,
+  fineScale: 1,
 };
 
 export type EnvironmentSelection =

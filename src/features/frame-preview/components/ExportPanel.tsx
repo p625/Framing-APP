@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { EnvironmentPlacement } from "../framing.types";
+import type { EnvironmentCalibration, EnvironmentPlacement } from "../framing.types";
 import { exportEnvironmentPreviewDataUrl } from "../renderer/composeEnvironmentPreview";
 import type { ExportMode } from "../ui/appUi.types";
 import { ENVIRONMENT_FRAME_CANVAS_ID, PREVIEW_CANVAS_ID } from "./PreviewCanvas";
@@ -12,6 +12,9 @@ interface ExportPanelProps {
   canvasId?: string;
   environmentImageUrl?: string | null;
   environmentPlacement?: EnvironmentPlacement;
+  environmentCalibration?: EnvironmentCalibration | null;
+  framedWidthCm?: number;
+  framedHeightCm?: number;
   canExportEnvironment?: boolean;
 }
 
@@ -30,6 +33,9 @@ export function ExportPanel({
   canvasId = PREVIEW_CANVAS_ID,
   environmentImageUrl = null,
   environmentPlacement,
+  environmentCalibration = null,
+  framedWidthCm = 0,
+  framedHeightCm = 0,
   canExportEnvironment = false,
 }: ExportPanelProps) {
   const handleExportFramed = useCallback(() => {
@@ -53,7 +59,13 @@ export function ExportPanel({
   }, [canvasId]);
 
   const handleExportEnvironment = useCallback(async () => {
-    if (!environmentImageUrl || !environmentPlacement) {
+    if (
+      !environmentImageUrl ||
+      !environmentPlacement ||
+      !environmentCalibration ||
+      framedWidthCm <= 0 ||
+      framedHeightCm <= 0
+    ) {
       return;
     }
 
@@ -64,11 +76,16 @@ export function ExportPanel({
 
     try {
       const environmentImage = await loadImage(environmentImageUrl);
-      const dataUrl = exportEnvironmentPreviewDataUrl(
+      const dataUrl = exportEnvironmentPreviewDataUrl({
+        outputWidth: 0,
+        outputHeight: 0,
         environmentImage,
         framedCanvas,
-        environmentPlacement,
-      );
+        placement: environmentPlacement,
+        calibration: environmentCalibration,
+        framedWidthCm,
+        framedHeightCm,
+      });
       const link = document.createElement("a");
       link.download = "framestudio-environment.png";
       link.href = dataUrl;
@@ -76,7 +93,14 @@ export function ExportPanel({
     } catch {
       handleExportFramed();
     }
-  }, [environmentImageUrl, environmentPlacement, handleExportFramed]);
+  }, [
+    environmentCalibration,
+    environmentImageUrl,
+    environmentPlacement,
+    framedHeightCm,
+    framedWidthCm,
+    handleExportFramed,
+  ]);
 
   const handleExport = useCallback(() => {
     if (exportMode === "environment" && canExportEnvironment) {

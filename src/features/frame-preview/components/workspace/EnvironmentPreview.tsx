@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FrameDefinition, FrameSampleMode, UseFramingStateReturn } from "../../framing.types";
 import type { UseEnvironmentStateReturn } from "../../hooks/useEnvironmentState";
+import { computeRenderDimensions } from "../../renderer/drawFramedArtwork";
+import { computePreviewDimensionsSummary } from "../../utils/previewDimensions";
+import {
+  computeFramedArtworkDisplayPx,
+  computeObjectCoverLayout,
+} from "../../utils/environmentCalibration";
 import { PreviewCanvas, ENVIRONMENT_FRAME_CANVAS_ID } from "../PreviewCanvas";
 
 interface EnvironmentPreviewProps {
@@ -19,6 +25,8 @@ export function EnvironmentPreview({
   frameSampleMode,
 }: EnvironmentPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -28,11 +36,106 @@ export function EnvironmentPreview({
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const { environmentImageUrl, placement, updatePlacement } = environment;
+  const { environmentImageUrl, calibration, placement, updatePlacement, hasWallCalibration } =
+    environment;
+
+  const sizeSummary = useMemo(
+    () =>
+      computePreviewDimensionsSummary(
+        framing.canvasSize,
+        framing.frameWidthCm,
+        framing.matSettings,
+      ),
+    [framing.canvasSize, framing.frameWidthCm, framing.matSettings],
+  );
+
+  const renderDimensions = useMemo(
+    () =>
+      computeRenderDimensions(
+        framing.canvasSize,
+        framing.frameWidthCm,
+        framing.matSettings,
+      ),
+    [framing.canvasSize, framing.frameWidthCm, framing.matSettings],
+  );
+
+  useEffect(() => {
+    if (!environmentImageUrl) {
+      return;
+    }
+    const image = new Image();
+    image.onload = () => {
+      setImageNaturalSize({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
+    };
+    image.src = environmentImageUrl;
+  }, [environmentImageUrl]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+    const update = () => {
+      setContainerSize({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  const displaySize = useMemo(() => {
+    if (
+      !hasWallCalibration ||
+      !calibration ||
+      containerSize.width === 0 ||
+      imageNaturalSize.width === 0
+    ) {
+      return null;
+    }
+
+    const layout = computeObjectCoverLayout(
+      containerSize.width,
+      containerSize.height,
+      imageNaturalSize.width,
+      imageNaturalSize.height,
+    );
+
+    return computeFramedArtworkDisplayPx(
+      calibration,
+      layout,
+      imageNaturalSize.width,
+      imageNaturalSize.height,
+      sizeSummary.totalWidthCm,
+      sizeSummary.totalHeightCm,
+      placement.fineScale,
+    );
+  }, [
+    calibration,
+    containerSize.height,
+    containerSize.width,
+    hasWallCalibration,
+    imageNaturalSize.height,
+    imageNaturalSize.width,
+    placement.fineScale,
+    sizeSummary.totalHeightCm,
+    sizeSummary.totalWidthCm,
+  ]);
+
+  const cssScale =
+    displaySize && renderDimensions.width > 0
+      ? displaySize.width / renderDimensions.width
+      : 1;
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) {
+      if (event.button !== 0 || !hasWallCalibration) {
         return;
       }
       event.preventDefault();
@@ -46,7 +149,7 @@ export function EnvironmentPreview({
       };
       setIsDragging(true);
     },
-    [placement.x, placement.y],
+    [hasWallCalibration, placement.x, placement.y],
   );
 
   useEffect(() => {
@@ -66,8 +169,8 @@ export function EnvironmentPreview({
       const deltaY = ((event.clientY - drag.startY) / rect.height) * 100;
 
       updatePlacement({
-        x: Math.min(95, Math.max(5, drag.originX + deltaX)),
-        y: Math.min(95, Math.max(5, drag.originY + deltaY)),
+        x: Math.min(98, Math.max(2, drag.originX + deltaX)),
+        y: Math.min(98, Math.max(2, drag.originY + deltaY)),
       });
     };
 
@@ -94,6 +197,17 @@ export function EnvironmentPreview({
     );
   }
 
+  if (!hasWallCalibration) {
+    return (
+      <div className="flex h-full items-center justify-center fs-canvas-bg p-8 text-center">
+        <p className="fs-caption">
+          This environment needs wall calibration. Use &quot;Calibrate wall&quot; in the
+          right column.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
@@ -113,7 +227,8 @@ export function EnvironmentPreview({
         style={{
           left: `${placement.x}%`,
           top: `${placement.y}%`,
-          transform: `translate(-50%, -50%) scale(${placement.scale}) rotate(${placement.rotation}deg)`,
+          transform: `translate(-50%, -50%) scale(${cssScale})`,
+          transformOrigin: "center center",
           filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.28))",
         }}
         onPointerDown={handlePointerDown}

@@ -46,6 +46,7 @@ interface PerspectiveEditorProps {
   onStraighten: () => Promise<void>;
   onReset: () => void;
   displayMode?: "compact" | "workspace";
+  variant?: "artwork" | "frameSample";
   onDone?: () => void;
   onCancel?: () => void;
 }
@@ -58,9 +59,12 @@ export function PerspectiveEditor({
   onStraighten,
   onReset,
   displayMode = "compact",
+  variant = "artwork",
   onDone,
   onCancel,
 }: PerspectiveEditorProps) {
+  const isFrameSample = variant === "frameSample";
+  const subjectLabel = isFrameSample ? "frame sample" : "artwork";
   const containerRef = useRef<HTMLDivElement>(null);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [layout, setLayout] = useState<ImageLayout | null>(null);
@@ -428,7 +432,7 @@ export function PerspectiveEditor({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={artworkPreviewUrl}
-            alt="Artwork for perspective correction"
+            alt={`${subjectLabel} for perspective correction`}
             className="h-full w-full object-contain"
             draggable={false}
           />
@@ -484,7 +488,7 @@ export function PerspectiveEditor({
 
       {!isWorkspace ? (
         <p className="text-xs text-zinc-500">
-          Drag corners to the artwork edges. Scroll to zoom at the pointer, use the
+          Drag corners to the {subjectLabel} edges. Scroll to zoom at the pointer, use the
           slider or drag the background to pan for precise placement.
         </p>
       ) : null}
@@ -497,7 +501,7 @@ export function PerspectiveEditor({
             disabled={isProcessing}
             className="flex-1 fs-btn fs-btn-primary py-2"
           >
-            {isProcessing ? "Straightening…" : "Straighten image"}
+            {isProcessing ? "Straightening…" : isFrameSample ? "Straighten sample" : "Straighten image"}
           </button>
           <button
             type="button"

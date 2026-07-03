@@ -85,6 +85,10 @@ export function ArtworkColumn({
       >
         <SizeInputs
           canvasSize={framing.canvasSize}
+          lockAspectRatio={framing.lockCanvasAspectRatio}
+          aspectRatio={framing.artworkAspectRatio}
+          hasArtwork={hasArtwork}
+          onLockAspectRatioChange={framing.setLockCanvasAspectRatio}
           onCanvasSizeChange={framing.setCanvasSize}
         />
       </CollapsibleSection>

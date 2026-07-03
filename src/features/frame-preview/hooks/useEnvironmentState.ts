@@ -3,22 +3,44 @@
 import { useCallback, useState } from "react";
 import { getBuiltinEnvironment } from "../defaults/builtinEnvironments";
 import type {
+  EnvironmentCalibration,
   EnvironmentPlacement,
   EnvironmentSelection,
 } from "../framing.types";
 import { DEFAULT_ENVIRONMENT_PLACEMENT } from "../framing.types";
 import { loadEnvironment } from "../storage/environmentStorage";
+import {
+  approximateWallCenterPlacement,
+  isEnvironmentCalibrationValid,
+} from "../utils/environmentCalibration";
+
+function placementForCalibration(
+  calibration: EnvironmentCalibration,
+): EnvironmentPlacement {
+  const center = approximateWallCenterPlacement(calibration);
+  return {
+    ...DEFAULT_ENVIRONMENT_PLACEMENT,
+    x: center.x,
+    y: center.y,
+  };
+}
 
 export function useEnvironmentState() {
   const [selection, setSelection] = useState<EnvironmentSelection>({
     kind: "builtin",
     id: "white-gallery",
   });
+  const builtinDefault = getBuiltinEnvironment("white-gallery");
   const [environmentImageUrl, setEnvironmentImageUrl] = useState<string | null>(
-    getBuiltinEnvironment("white-gallery")?.imageUrl ?? null,
+    builtinDefault?.imageUrl ?? null,
   );
-  const [placement, setPlacement] = useState<EnvironmentPlacement>(
-    DEFAULT_ENVIRONMENT_PLACEMENT,
+  const [calibration, setCalibration] = useState<EnvironmentCalibration | null>(
+    builtinDefault?.calibration ?? null,
+  );
+  const [placement, setPlacement] = useState<EnvironmentPlacement>(() =>
+    builtinDefault?.calibration
+      ? placementForCalibration(builtinDefault.calibration)
+      : DEFAULT_ENVIRONMENT_PLACEMENT,
   );
   const [environmentCatalogueRevision, setEnvironmentCatalogueRevision] =
     useState(0);
@@ -39,7 +61,8 @@ export function useEnvironmentState() {
       }
       return builtin.imageUrl;
     });
-    setPlacement(DEFAULT_ENVIRONMENT_PLACEMENT);
+    setCalibration(builtin.calibration);
+    setPlacement(placementForCalibration(builtin.calibration));
   }, []);
 
   const selectSavedEnvironment = useCallback(async (id: string) => {
@@ -54,24 +77,46 @@ export function useEnvironmentState() {
       }
       return record.imageUrl;
     });
-    setPlacement(DEFAULT_ENVIRONMENT_PLACEMENT);
+    setCalibration(record.calibration);
+    setPlacement(
+      record.calibration
+        ? placementForCalibration(record.calibration)
+        : DEFAULT_ENVIRONMENT_PLACEMENT,
+    );
   }, []);
+
+  const applySavedCalibration = useCallback(
+    (savedCalibration: EnvironmentCalibration) => {
+      setCalibration(savedCalibration);
+      setPlacement(placementForCalibration(savedCalibration));
+    },
+    [],
+  );
 
   const updatePlacement = useCallback((patch: Partial<EnvironmentPlacement>) => {
     setPlacement((current) => ({ ...current, ...patch }));
   }, []);
 
   const resetPlacement = useCallback(() => {
+    if (calibration && isEnvironmentCalibrationValid(calibration)) {
+      setPlacement(placementForCalibration(calibration));
+      return;
+    }
     setPlacement(DEFAULT_ENVIRONMENT_PLACEMENT);
-  }, []);
+  }, [calibration]);
+
+  const hasWallCalibration = isEnvironmentCalibrationValid(calibration);
 
   return {
     selection,
     environmentImageUrl,
+    calibration,
     placement,
+    hasWallCalibration,
     environmentCatalogueRevision,
     selectBuiltinEnvironment,
     selectSavedEnvironment,
+    applySavedCalibration,
     updatePlacement,
     resetPlacement,
     notifyEnvironmentCatalogueChanged,

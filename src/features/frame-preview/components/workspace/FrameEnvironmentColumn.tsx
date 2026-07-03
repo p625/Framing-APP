@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import type { UseFramingStateReturn } from "../../framing.types";
 import type { UseEnvironmentStateReturn } from "../../hooks/useEnvironmentState";
+import { computePreviewDimensionsSummary } from "../../utils/previewDimensions";
 import type { ExportMode, FrameCatalogueSelection, WorkspaceSectionId } from "../../ui/appUi.types";
 import { ExportPanel } from "../ExportPanel";
 import { FrameWidthInput } from "../FrameWidthInput";
@@ -40,6 +42,16 @@ export function FrameEnvironmentColumn({
   exportMode,
   onExportModeChange,
 }: FrameEnvironmentColumnProps) {
+  const sizeSummary = useMemo(
+    () =>
+      computePreviewDimensionsSummary(
+        framing.canvasSize,
+        framing.frameWidthCm,
+        framing.matSettings,
+      ),
+    [framing.canvasSize, framing.frameWidthCm, framing.matSettings],
+  );
+
   return (
     <nav className="flex h-full w-full flex-col overflow-y-auto bg-fs-surface">
       <div className="border-b border-fs-border px-4 py-3">
@@ -91,8 +103,9 @@ export function FrameEnvironmentColumn({
           onSelectBuiltin={environment.selectBuiltinEnvironment}
           onSelectSaved={(id) => void environment.selectSavedEnvironment(id)}
           onCatalogueChanged={environment.notifyEnvironmentCatalogueChanged}
+          onCalibrationSaved={environment.applySavedCalibration}
         />
-        {centerView === "environment" ? (
+        {centerView === "environment" && environment.hasWallCalibration ? (
           <EnvironmentPlacementControls
             placement={environment.placement}
             onChange={environment.updatePlacement}
@@ -112,7 +125,12 @@ export function FrameEnvironmentColumn({
           onExportModeChange={onExportModeChange}
           environmentImageUrl={environment.environmentImageUrl}
           environmentPlacement={environment.placement}
-          canExportEnvironment={Boolean(environment.environmentImageUrl)}
+          environmentCalibration={environment.calibration}
+          framedWidthCm={sizeSummary.totalWidthCm}
+          framedHeightCm={sizeSummary.totalHeightCm}
+          canExportEnvironment={
+            Boolean(environment.environmentImageUrl) && environment.hasWallCalibration
+          }
         />
       </CollapsibleSection>
     </nav>

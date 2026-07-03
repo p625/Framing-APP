@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BUILTIN_ENVIRONMENTS } from "../../defaults/builtinEnvironments";
-import type { SavedEnvironmentSummary } from "../../framing.types";
+import type { EnvironmentCalibration, SavedEnvironmentSummary } from "../../framing.types";
 import type { EnvironmentSelection } from "../../framing.types";
 import {
   deleteEnvironment,
+  getEnvironmentImageUrl,
   getEnvironmentThumbnailUrl,
+  getEnvironmentCalibration,
   listSavedEnvironments,
   renameEnvironment,
   saveEnvironment,
+  updateEnvironmentCalibration,
 } from "../../storage/environmentStorage";
+import { EnvironmentWallCalibrationEditor } from "./EnvironmentWallCalibrationEditor";
 
 interface EnvironmentCatalogueProps {
   selection: EnvironmentSelection;
@@ -18,6 +22,7 @@ interface EnvironmentCatalogueProps {
   onSelectBuiltin: (id: string) => void;
   onSelectSaved: (id: string) => void;
   onCatalogueChanged: () => void;
+  onCalibrationSaved?: (calibration: EnvironmentCalibration) => void;
 }
 
 export function EnvironmentCatalogue({
@@ -26,6 +31,7 @@ export function EnvironmentCatalogue({
   onSelectBuiltin,
   onSelectSaved,
   onCatalogueChanged,
+  onCalibrationSaved,
 }: EnvironmentCatalogueProps) {
   const [saved, setSaved] = useState<SavedEnvironmentSummary[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -33,6 +39,11 @@ export function EnvironmentCatalogue({
   const [status, setStatus] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [calibrating, setCalibrating] = useState<{
+    id: string;
+    imageUrl: string;
+    initialCalibration: EnvironmentCalibration | null;
+  } | null>(null);
 
   const reload = useCallback(async () => {
     const items = await listSavedEnvironments();
@@ -85,6 +96,18 @@ export function EnvironmentCatalogue({
   const isSelected = (kind: "builtin" | "saved", id: string) =>
     selection?.kind === kind && selection.id === id;
 
+  const openCalibration = async (id: string) => {
+    const [imageUrl, initialCalibration] = await Promise.all([
+      getEnvironmentImageUrl(id),
+      getEnvironmentCalibration(id),
+    ]);
+    if (!imageUrl) {
+      setStatus("Could not load environment image.");
+      return;
+    }
+    setCalibrating({ id, imageUrl, initialCalibration });
+  };
+
   const handleUpload = async (file: File | null) => {
     if (!file) {
       return;
@@ -96,7 +119,8 @@ export function EnvironmentCatalogue({
       await reload();
       onSelectSaved(id);
       setUploadName(name);
-      setStatus(`Saved environment "${name}".`);
+      setStatus(`Uploaded "${name}". Calibrate the wall area next.`);
+      await openCalibration(id);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Upload failed.");
     }
@@ -123,6 +147,34 @@ export function EnvironmentCatalogue({
     await reload();
   };
 
+  const handleSaveCalibration = async (calibration: EnvironmentCalibration) => {
+    if (!calibrating) {
+      return;
+    }
+    await updateEnvironmentCalibration(calibrating.id, calibration);
+    onCatalogueChanged();
+    await reload();
+    onSelectSaved(calibrating.id);
+    onCalibrationSaved?.(calibration);
+    URL.revokeObjectURL(calibrating.imageUrl);
+    setCalibrating(null);
+    setStatus("Wall calibration saved.");
+  };
+
+  if (calibrating) {
+    return (
+      <EnvironmentWallCalibrationEditor
+        imageUrl={calibrating.imageUrl}
+        initialCalibration={calibrating.initialCalibration}
+        onSave={(calibration) => void handleSaveCalibration(calibration)}
+        onCancel={() => {
+          URL.revokeObjectURL(calibrating.imageUrl);
+          setCalibrating(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -141,7 +193,7 @@ export function EnvironmentCatalogue({
             </div>
             <div className="px-2 py-2">
               <p className="text-xs font-medium text-fs-primary">{env.name}</p>
-              <p className="text-[10px] text-fs-muted">Built-in</p>
+              <p className="text-[10px] text-fs-muted">Built-in · calibrated</p>
             </div>
           </button>
         ))}
@@ -185,10 +237,19 @@ export function EnvironmentCatalogue({
                 ) : (
                   <p className="truncate text-xs font-medium text-fs-primary">{item.name}</p>
                 )}
-                <p className="text-[10px] text-fs-gold">Your room</p>
+                <p className="text-[10px] text-fs-gold">
+                  {item.hasCalibration ? "Your room · calibrated" : "Needs calibration"}
+                </p>
               </div>
             </button>
-            <div className="flex gap-2 px-2 pb-2">
+            <div className="flex flex-wrap gap-2 px-2 pb-2">
+              <button
+                type="button"
+                onClick={() => void openCalibration(item.id)}
+                className="text-[10px] text-fs-gold hover:underline"
+              >
+                Calibrate wall
+              </button>
               <button
                 type="button"
                 onClick={() => {

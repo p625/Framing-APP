@@ -10,6 +10,7 @@ import {
   saveFrameProfile,
 } from "../../storage/frameProfileStorage";
 import { FrameCornerCalibrationEditor, getCalibrationOrDefault } from "../FrameCornerCalibrationEditor";
+import { PerspectiveEditor } from "../PerspectiveEditor";
 import { PreviewCanvas } from "../PreviewCanvas";
 import { TEXTURE_SCALE_PRESETS, type TextureScalePreset } from "../../framing.types";
 import { SAMPLE_FRAMES } from "../../sampleFrames";
@@ -30,6 +31,8 @@ const PRESET_LABELS: Record<TextureScalePreset, string> = {
   large: "Large",
 };
 
+type SamplePrepStep = "perspective" | "calibration";
+
 export function ProfileEditorMode({
   framing,
   editingProfileId,
@@ -40,6 +43,7 @@ export function ProfileEditorMode({
   const [profileName, setProfileName] = useState("New frame profile");
   const [status, setStatus] = useState<string | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(editingProfileId);
+  const [samplePrepStep, setSamplePrepStep] = useState<SamplePrepStep>("calibration");
 
   const importFrameProfile = framing.importFrameProfile;
 
@@ -190,10 +194,28 @@ export function ProfileEditorMode({
               accept="image/*"
               className="sr-only"
               onChange={(event) => {
-                framing.setCustomFrameFile(event.target.files?.[0] ?? null);
+                const file = event.target.files?.[0] ?? null;
+                framing.setCustomFrameFile(file);
+                if (file) {
+                  setSamplePrepStep("perspective");
+                }
               }}
             />
           </label>
+
+          {framing.customFrameFile ? (
+            <button
+              type="button"
+              onClick={() => setSamplePrepStep("perspective")}
+              className={`fs-btn w-full py-2 text-sm ${
+                samplePrepStep === "perspective"
+                  ? "border-fs-primary bg-fs-gold-muted font-medium"
+                  : "fs-btn-secondary"
+              }`}
+            >
+              Straighten frame sample
+            </button>
+          ) : null}
 
           {frameSampleMode === "texture" ? (
             <div className="space-y-2">
@@ -264,11 +286,52 @@ export function ProfileEditorMode({
       <main className="flex min-w-0 flex-1 flex-col fs-canvas-bg">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 xl:grid-cols-2">
           <div className="fs-panel flex min-h-0 flex-col overflow-hidden">
-            <div className="border-b border-fs-border px-4 py-2 text-xs font-medium text-fs-primary">
-              Calibration
+            <div className="flex items-center justify-between border-b border-fs-border px-4 py-2">
+              <span className="text-xs font-medium text-fs-primary">Sample preparation</span>
+              {framing.customFrameFile ? (
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSamplePrepStep("perspective")}
+                    className={`fs-btn px-2 py-1 text-[10px] ${
+                      samplePrepStep === "perspective"
+                        ? "border-fs-primary bg-fs-gold-muted font-medium"
+                        : "fs-btn-secondary"
+                    }`}
+                  >
+                    Straighten
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSamplePrepStep("calibration")}
+                    className={`fs-btn px-2 py-1 text-[10px] ${
+                      samplePrepStep === "calibration"
+                        ? "border-fs-primary bg-fs-gold-muted font-medium"
+                        : "fs-btn-secondary"
+                    }`}
+                  >
+                    Calibrate
+                  </button>
+                </div>
+              ) : null}
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              {framing.customFrameTextureUrl && frameSampleMode === "corner" ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
+              {!framing.customFrameFile ? (
+                <p className="fs-caption">Upload a sample to begin straightening and calibration.</p>
+              ) : samplePrepStep === "perspective" ? (
+                <PerspectiveEditor
+                  artworkPreviewUrl={framing.customFrameOriginalUrl}
+                  perspectiveCorners={framing.frameSamplePerspectiveCorners}
+                  correctedArtworkUrl={framing.correctedCustomFrameUrl}
+                  onCornersChange={framing.setFrameSamplePerspectiveCorners}
+                  onStraighten={framing.straightenCustomFrame}
+                  onReset={framing.resetCustomFramePerspective}
+                  displayMode="workspace"
+                  variant="frameSample"
+                  onCancel={() => setSamplePrepStep("calibration")}
+                  onDone={() => setSamplePrepStep("calibration")}
+                />
+              ) : framing.customFrameTextureUrl && frameSampleMode === "corner" ? (
                 <FrameCornerCalibrationEditor
                   imageUrl={framing.customFrameTextureUrl}
                   calibration={getCalibrationOrDefault(framing.frameCornerCalibration)}
@@ -283,7 +346,7 @@ export function ProfileEditorMode({
                   className="max-h-full w-full rounded-lg object-contain"
                 />
               ) : (
-                <p className="fs-caption">Upload a sample to begin calibration.</p>
+                <p className="fs-caption">Straighten the sample first, then calibrate.</p>
               )}
             </div>
           </div>

@@ -4,6 +4,7 @@ import type {
   SerializableProject,
   StoredImagePayload,
 } from "../framing.types";
+import type { EnvironmentCalibration } from "../framing.types";
 
 const DB_NAME = "framing-app";
 const DB_VERSION = 2;
@@ -29,6 +30,7 @@ export interface EnvironmentRecord {
   updatedAt: number;
   image: StoredImagePayload;
   thumbnail: StoredImagePayload;
+  calibration: EnvironmentCalibration | null;
 }
 
 interface FramingDBSchema extends DBSchema {

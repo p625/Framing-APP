@@ -89,7 +89,8 @@ export function FramingApp() {
 
   const hasArtwork = Boolean(framing.artworkFile);
   const canCrop = Boolean(framing.correctedArtworkUrl ?? framing.artworkPreviewUrl);
-  const hasEnvironment = Boolean(environment.environmentImageUrl);
+  const hasEnvironment =
+    Boolean(environment.environmentImageUrl) && environment.hasWallCalibration;
 
   return (
     <div className="flex h-screen flex-col bg-fs-bg">

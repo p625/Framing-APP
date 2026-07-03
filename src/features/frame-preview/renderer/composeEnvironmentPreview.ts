@@ -1,52 +1,98 @@
-import type { EnvironmentPlacement } from "../framing.types";
+import type { EnvironmentCalibration, EnvironmentPlacement } from "../framing.types";
+import type { ImageLayout } from "../utils/imageLayout";
+import {
+  computeFramedArtworkDisplayPx,
+  computeObjectCoverLayout,
+} from "../utils/environmentCalibration";
 
 function drawCoverImage(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
   width: number,
   height: number,
-): void {
-  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
-  const drawW = image.naturalWidth * scale;
-  const drawH = image.naturalHeight * scale;
-  const x = (width - drawW) / 2;
-  const y = (height - drawH) / 2;
-  ctx.drawImage(image, x, y, drawW, drawH);
+): ImageLayout {
+  const layout = computeObjectCoverLayout(
+    width,
+    height,
+    image.naturalWidth,
+    image.naturalHeight,
+  );
+
+  ctx.drawImage(
+    image,
+    layout.offsetX,
+    layout.offsetY,
+    layout.displayWidth,
+    layout.displayHeight,
+  );
+
+  return layout;
+}
+
+export interface EnvironmentComposeInput {
+  outputWidth: number;
+  outputHeight: number;
+  environmentImage: HTMLImageElement;
+  framedCanvas: HTMLCanvasElement;
+  placement: EnvironmentPlacement;
+  calibration: EnvironmentCalibration;
+  framedWidthCm: number;
+  framedHeightCm: number;
 }
 
 export function composeEnvironmentPreview(
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  environmentImage: HTMLImageElement,
-  framedCanvas: HTMLCanvasElement,
-  placement: EnvironmentPlacement,
+  input: EnvironmentComposeInput,
 ): void {
-  ctx.clearRect(0, 0, width, height);
-  drawCoverImage(ctx, environmentImage, width, height);
+  const {
+    outputWidth,
+    outputHeight,
+    environmentImage,
+    framedCanvas,
+    placement,
+    calibration,
+    framedWidthCm,
+    framedHeightCm,
+  } = input;
 
-  const centerX = (placement.x / 100) * width;
-  const centerY = (placement.y / 100) * height;
-  const frameW = framedCanvas.width * placement.scale;
-  const frameH = framedCanvas.height * placement.scale;
+  ctx.clearRect(0, 0, outputWidth, outputHeight);
+  const layout = drawCoverImage(ctx, environmentImage, outputWidth, outputHeight);
+
+  const displaySize = computeFramedArtworkDisplayPx(
+    calibration,
+    layout,
+    environmentImage.naturalWidth,
+    environmentImage.naturalHeight,
+    framedWidthCm,
+    framedHeightCm,
+    placement.fineScale,
+  );
+
+  const centerX = (placement.x / 100) * outputWidth;
+  const centerY = (placement.y / 100) * outputHeight;
+  const renderScale = displaySize.width / framedCanvas.width;
 
   ctx.save();
   ctx.translate(centerX, centerY);
-  ctx.rotate((placement.rotation * Math.PI) / 180);
   ctx.shadowColor = "rgba(0, 0, 0, 0.38)";
-  ctx.shadowBlur = Math.max(12, frameW * 0.04);
+  ctx.shadowBlur = Math.max(12, displaySize.width * 0.04);
   ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = Math.max(6, frameH * 0.02);
-  ctx.drawImage(framedCanvas, -frameW / 2, -frameH / 2, frameW, frameH);
+  ctx.shadowOffsetY = Math.max(6, displaySize.height * 0.02);
+  ctx.drawImage(
+    framedCanvas,
+    (-framedCanvas.width * renderScale) / 2,
+    (-framedCanvas.height * renderScale) / 2,
+    framedCanvas.width * renderScale,
+    framedCanvas.height * renderScale,
+  );
   ctx.restore();
 }
 
 export function exportEnvironmentPreviewDataUrl(
-  environmentImage: HTMLImageElement,
-  framedCanvas: HTMLCanvasElement,
-  placement: EnvironmentPlacement,
+  input: EnvironmentComposeInput,
   maxDimension = 2400,
 ): string {
+  const { environmentImage } = input;
   const aspect = environmentImage.naturalWidth / environmentImage.naturalHeight;
   let width = maxDimension;
   let height = Math.round(maxDimension / aspect);
@@ -61,9 +107,13 @@ export function exportEnvironmentPreviewDataUrl(
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    return framedCanvas.toDataURL("image/png");
+    return input.framedCanvas.toDataURL("image/png");
   }
 
-  composeEnvironmentPreview(ctx, width, height, environmentImage, framedCanvas, placement);
+  composeEnvironmentPreview(ctx, {
+    ...input,
+    outputWidth: width,
+    outputHeight: height,
+  });
   return canvas.toDataURL("image/png");
 }
