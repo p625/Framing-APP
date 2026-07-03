@@ -138,3 +138,18 @@ export function getCalibratedCornerSource(
     height: size,
   };
 }
+
+export function computeCalibrationRenderScale(
+  calibration: FrameCornerCalibration,
+  imageWidth: number,
+  imageHeight: number,
+  cornerRenderSizePx: number,
+): number {
+  const cornerSource = getCalibratedCornerSource(
+    calibration,
+    imageWidth,
+    imageHeight,
+  );
+
+  return cornerRenderSizePx / Math.max(cornerSource.width, 1);
+}
