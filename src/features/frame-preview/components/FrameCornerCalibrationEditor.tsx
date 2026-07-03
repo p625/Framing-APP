@@ -11,6 +11,13 @@ import {
   type ImageLayout,
 } from "../utils/imageLayout";
 import {
+  CORNER_QUADRANT_LABELS,
+  detectSourceCorner,
+  resolveSourceCorner,
+  SOURCE_CORNER_OPTION_LABELS,
+  SOURCE_CORNER_OPTIONS,
+} from "../utils/frameCalibration";
+import {
   applyWheelZoom,
   clampZoom,
   computePanForZoomAtPoint,
@@ -410,6 +417,11 @@ export function FrameCornerCalibrationEditor({
 
   const innerDisplay = renderPoint(calibration.innerCorner);
   const outerDisplay = renderPoint(calibration.outerCorner);
+  const resolvedSource = resolveSourceCorner(calibration);
+  const autoDetection =
+    calibration.sourceCorner === "auto"
+      ? detectSourceCorner(calibration.innerCorner, calibration.outerCorner)
+      : null;
 
   return (
     <div className="space-y-3">
@@ -418,6 +430,51 @@ export function FrameCornerCalibrationEditor({
         outer corner points, then draw horizontal and vertical rail sample strips
         from that corner.
       </p>
+
+      <p className="text-xs text-zinc-500">
+        If two corners look correct and two look wrong, manually choose which corner
+        the uploaded photo represents.
+      </p>
+
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-zinc-700">Source corner on photo</span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {SOURCE_CORNER_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() =>
+                onCalibrationChange({ ...calibration, sourceCorner: option })
+              }
+              className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                calibration.sourceCorner === option
+                  ? "border-zinc-900 bg-zinc-50 font-medium text-zinc-900"
+                  : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
+              }`}
+            >
+              {SOURCE_CORNER_OPTION_LABELS[option]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+        The uploaded sample is interpreted as:{" "}
+        <span className="font-medium text-zinc-900">
+          {CORNER_QUADRANT_LABELS[resolvedSource.corner]}
+        </span>
+        {calibration.sourceCorner === "auto" ? " (auto-detected)" : " (manual)"}
+      </p>
+
+      {calibration.sourceCorner === "auto" && autoDetection?.ambiguous ? (
+        <p
+          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          role="status"
+        >
+          Corner detection is ambiguous. Place inner and outer points farther apart,
+          or select the source corner manually.
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2">
         {(Object.keys(TOOL_LABELS) as CalibrationTool[]).map((tool) => (
@@ -624,5 +681,12 @@ export function FrameCornerCalibrationEditor({
 export function getCalibrationOrDefault(
   calibration: FrameCornerCalibration | null,
 ): FrameCornerCalibration {
-  return calibration ?? DEFAULT_FRAME_CORNER_CALIBRATION;
+  if (!calibration) {
+    return DEFAULT_FRAME_CORNER_CALIBRATION;
+  }
+
+  return {
+    ...calibration,
+    sourceCorner: calibration.sourceCorner ?? "auto",
+  };
 }

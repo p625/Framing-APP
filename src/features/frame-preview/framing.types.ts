@@ -128,7 +128,15 @@ export interface FrameCornerCalibration {
   outerCorner: Point;
   horizontalStrip: NormalizedRect;
   verticalStrip: NormalizedRect;
+  sourceCorner: SourceCornerSetting;
 }
+
+export type SourceCornerSetting =
+  | "auto"
+  | "top-left"
+  | "top-right"
+  | "bottom-right"
+  | "bottom-left";
 
 export const DEFAULT_CROP_SETTINGS: CropSettings = {
   crop: { x: 0, y: 0 },
@@ -157,6 +165,7 @@ export const DEFAULT_FRAME_CORNER_CALIBRATION: FrameCornerCalibration = {
   outerCorner: { x: 0.08, y: 0.08 },
   horizontalStrip: { x: 0.12, y: 0.44, width: 0.5, height: 0.08 },
   verticalStrip: { x: 0.44, y: 0.12, width: 0.08, height: 0.5 },
+  sourceCorner: "auto",
 };
 
 export const MAT_COLOR_PRESETS = [

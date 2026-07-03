@@ -1,4 +1,9 @@
-import type { FrameCornerCalibration, NormalizedRect, Point } from "../framing.types";
+import type {
+  FrameCornerCalibration,
+  NormalizedRect,
+  Point,
+  SourceCornerSetting,
+} from "../framing.types";
 
 export type CornerQuadrant = "top-left" | "top-right" | "bottom-right" | "bottom-left";
 
@@ -9,27 +14,140 @@ const CORNER_INDEX: Record<CornerQuadrant, number> = {
   "bottom-left": 3,
 };
 
+const CORNER_DETECTION_THRESHOLD = 0.02;
+
 export interface AxisFlip {
   flipX: boolean;
   flipY: boolean;
 }
 
-export function detectPhotographedCorner(inner: Point, outer: Point): CornerQuadrant {
-  if (inner.x >= outer.x && inner.y >= outer.y) {
-    return "top-left";
-  }
+export type CornerRotation = 0 | 90 | 180 | 270;
 
-  if (inner.x < outer.x && inner.y >= outer.y) {
-    return "top-right";
-  }
-
-  if (inner.x >= outer.x && inner.y < outer.y) {
-    return "bottom-left";
-  }
-
-  return "bottom-right";
+export interface CornerTransform {
+  rotation: CornerRotation;
+  flipX: boolean;
+  flipY: boolean;
 }
 
+export interface SourceCornerDetection {
+  corner: CornerQuadrant | null;
+  ambiguous: boolean;
+}
+
+export interface ResolvedSourceCorner {
+  corner: CornerQuadrant;
+  ambiguous: boolean;
+  fromManualSelection: boolean;
+}
+
+export const CORNER_QUADRANT_LABELS: Record<CornerQuadrant, string> = {
+  "top-left": "Top-left",
+  "top-right": "Top-right",
+  "bottom-right": "Bottom-right",
+  "bottom-left": "Bottom-left",
+};
+
+export function detectSourceCorner(inner: Point, outer: Point): SourceCornerDetection {
+  const dx = inner.x - outer.x;
+  const dy = inner.y - outer.y;
+
+  if (Math.abs(dx) < CORNER_DETECTION_THRESHOLD && Math.abs(dy) < CORNER_DETECTION_THRESHOLD) {
+    return { corner: null, ambiguous: true };
+  }
+
+  if (Math.abs(dx) < CORNER_DETECTION_THRESHOLD || Math.abs(dy) < CORNER_DETECTION_THRESHOLD) {
+    return { corner: null, ambiguous: true };
+  }
+
+  if (dx > 0 && dy > 0) {
+    return { corner: "top-left", ambiguous: false };
+  }
+
+  if (dx < 0 && dy > 0) {
+    return { corner: "top-right", ambiguous: false };
+  }
+
+  if (dx < 0 && dy < 0) {
+    return { corner: "bottom-right", ambiguous: false };
+  }
+
+  return { corner: "bottom-left", ambiguous: false };
+}
+
+/** @deprecated Use detectSourceCorner */
+export function detectPhotographedCorner(inner: Point, outer: Point): CornerQuadrant {
+  const detected = detectSourceCorner(inner, outer);
+  return detected.corner ?? "top-left";
+}
+
+export function resolveSourceCorner(
+  calibration: FrameCornerCalibration,
+): ResolvedSourceCorner {
+  if (calibration.sourceCorner !== "auto") {
+    return {
+      corner: calibration.sourceCorner,
+      ambiguous: false,
+      fromManualSelection: true,
+    };
+  }
+
+  const detected = detectSourceCorner(
+    calibration.innerCorner,
+    calibration.outerCorner,
+  );
+
+  if (detected.ambiguous || !detected.corner) {
+    return {
+      corner: "top-left",
+      ambiguous: true,
+      fromManualSelection: false,
+    };
+  }
+
+  return {
+    corner: detected.corner,
+    ambiguous: false,
+    fromManualSelection: false,
+  };
+}
+
+export function getCornerTransform(
+  sourceCorner: CornerQuadrant,
+  targetCorner: CornerQuadrant,
+): CornerTransform {
+  const steps = (CORNER_INDEX[targetCorner] - CORNER_INDEX[sourceCorner] + 4) % 4;
+
+  return {
+    rotation: (steps * 90) as CornerRotation,
+    flipX: false,
+    flipY: false,
+  };
+}
+
+export function getRailFlipFromSourceCorner(
+  sourceCorner: CornerQuadrant,
+  railId: "top" | "bottom" | "left" | "right",
+): AxisFlip {
+  const isTopSource =
+    sourceCorner === "top-left" || sourceCorner === "top-right";
+  const isLeftSource =
+    sourceCorner === "top-left" || sourceCorner === "bottom-left";
+
+  switch (railId) {
+    case "top":
+      return { flipX: false, flipY: !isTopSource };
+    case "bottom":
+      return { flipX: false, flipY: isTopSource };
+    case "left":
+      return { flipX: !isLeftSource, flipY: false };
+    case "right":
+      return { flipX: isLeftSource, flipY: false };
+    default:
+      return { flipX: false, flipY: false };
+  }
+}
+
+/** @deprecated Use getCornerTransform for calibrated rendering */
 export function getCornerFlipForFramePosition(
   photoCorner: CornerQuadrant,
   frameCorner: CornerQuadrant,
@@ -48,20 +166,16 @@ export function getCornerFlipForFramePosition(
   }
 }
 
+/** @deprecated Use getRailFlipFromSourceCorner for fallback corner mode */
 export function getRailFlips(photoCorner: CornerQuadrant): Record<
   "top" | "bottom" | "left" | "right",
   AxisFlip
 > {
-  const isTopPhoto =
-    photoCorner === "top-left" || photoCorner === "top-right";
-  const isLeftPhoto =
-    photoCorner === "top-left" || photoCorner === "bottom-left";
-
   return {
-    top: { flipX: false, flipY: !isTopPhoto },
-    bottom: { flipX: false, flipY: isTopPhoto },
-    left: { flipX: !isLeftPhoto, flipY: false },
-    right: { flipX: isLeftPhoto, flipY: false },
+    top: getRailFlipFromSourceCorner(photoCorner, "top"),
+    bottom: getRailFlipFromSourceCorner(photoCorner, "bottom"),
+    left: getRailFlipFromSourceCorner(photoCorner, "left"),
+    right: getRailFlipFromSourceCorner(photoCorner, "right"),
   };
 }
 
@@ -103,14 +217,11 @@ export interface ResolvedRailStrip {
   scale: number;
   tileLength: number;
   tileThickness: number;
-  innerTowardPositiveThickness: boolean;
 }
 
 export function resolveHorizontalRailStrip(
   strip: { x: number; y: number; width: number; height: number },
   frameThicknessPx: number,
-  inner: Point,
-  outer: Point,
 ): ResolvedRailStrip {
   let sourceLength = strip.width;
   let sourceThickness = strip.height;
@@ -130,15 +241,12 @@ export function resolveHorizontalRailStrip(
     scale,
     tileLength: sourceLength * scale,
     tileThickness: frameThicknessPx,
-    innerTowardPositiveThickness: inner.y > outer.y,
   };
 }
 
 export function resolveVerticalRailStrip(
   strip: { x: number; y: number; width: number; height: number },
   frameThicknessPx: number,
-  inner: Point,
-  outer: Point,
 ): ResolvedRailStrip {
   let sourceLength = strip.height;
   let sourceThickness = strip.width;
@@ -158,41 +266,21 @@ export function resolveVerticalRailStrip(
     scale,
     tileLength: sourceLength * scale,
     tileThickness: frameThicknessPx,
-    innerTowardPositiveThickness: inner.x > outer.x,
   };
-}
-
-export function getCalibratedRailFlip(
-  railId: "top" | "bottom" | "left" | "right",
-  innerTowardPositiveThickness: boolean,
-): AxisFlip {
-  switch (railId) {
-    case "top":
-      return { flipX: false, flipY: !innerTowardPositiveThickness };
-    case "bottom":
-      return { flipX: false, flipY: innerTowardPositiveThickness };
-    case "left":
-      return { flipX: !innerTowardPositiveThickness, flipY: false };
-    case "right":
-      return { flipX: innerTowardPositiveThickness, flipY: false };
-    default:
-      return { flipX: false, flipY: false };
-  }
 }
 
 export function getCalibratedCornerSource(
   calibration: FrameCornerCalibration,
   imageWidth: number,
   imageHeight: number,
+  sourceCorner?: CornerQuadrant,
 ): { x: number; y: number; width: number; height: number } {
   const innerX = calibration.innerCorner.x * imageWidth;
   const innerY = calibration.innerCorner.y * imageHeight;
   const outerX = calibration.outerCorner.x * imageWidth;
   const outerY = calibration.outerCorner.y * imageHeight;
-  const photoCorner = detectPhotographedCorner(
-    calibration.innerCorner,
-    calibration.outerCorner,
-  );
+  const photoCorner =
+    sourceCorner ?? resolveSourceCorner(calibration).corner;
   const size = Math.max(Math.abs(innerX - outerX), Math.abs(innerY - outerY), 1);
 
   let x = outerX;
@@ -223,3 +311,19 @@ export function getCalibratedCornerSource(
     height: size,
   };
 }
+
+export const SOURCE_CORNER_OPTIONS: SourceCornerSetting[] = [
+  "auto",
+  "top-left",
+  "top-right",
+  "bottom-right",
+  "bottom-left",
+];
+
+export const SOURCE_CORNER_OPTION_LABELS: Record<SourceCornerSetting, string> = {
+  auto: "Auto-detect",
+  "top-left": "Top-left",
+  "top-right": "Top-right",
+  "bottom-right": "Bottom-right",
+  "bottom-left": "Bottom-left",
+};

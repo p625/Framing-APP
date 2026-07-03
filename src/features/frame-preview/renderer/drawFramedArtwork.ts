@@ -8,16 +8,18 @@ import type {
 } from "../framing.types";
 import {
   denormalizeRect,
-  detectPhotographedCorner,
   getCalibratedCornerSource,
-  getCalibratedRailFlip,
   getCornerFlipForFramePosition,
+  getCornerTransform,
+  getRailFlipFromSourceCorner,
   getRailFlips,
   resolveHorizontalRailStrip,
+  resolveSourceCorner,
   resolveVerticalRailStrip,
   isFrameCornerCalibrationComplete,
   type AxisFlip,
   type CornerQuadrant,
+  type CornerTransform,
   type ResolvedRailStrip,
 } from "../utils/frameCalibration";
 
@@ -486,11 +488,12 @@ function drawOrientedCornerPatch(
   width: number,
   height: number,
   source: { x: number; y: number; width: number; height: number },
-  flip: AxisFlip,
+  transform: CornerTransform,
 ): void {
   ctx.save();
   ctx.translate(x + width / 2, y + height / 2);
-  ctx.scale(flip.flipX ? -1 : 1, flip.flipY ? -1 : 1);
+  ctx.rotate((transform.rotation * Math.PI) / 180);
+  ctx.scale(transform.flipX ? -1 : 1, transform.flipY ? -1 : 1);
   ctx.drawImage(
     image,
     source.x,
@@ -527,23 +530,15 @@ function drawCalibratedCornerSampleFrame(
     imgH,
   );
   const verticalStrip = denormalizeRect(calibration.verticalStrip, imgW, imgH);
-  const cornerSource = getCalibratedCornerSource(calibration, imgW, imgH);
-  const photoCorner = detectPhotographedCorner(
-    calibration.innerCorner,
-    calibration.outerCorner,
+  const { corner: sourceCorner } = resolveSourceCorner(calibration);
+  const cornerSource = getCalibratedCornerSource(
+    calibration,
+    imgW,
+    imgH,
+    sourceCorner,
   );
-  const horizontalResolved = resolveHorizontalRailStrip(
-    horizontalStrip,
-    framePxV,
-    calibration.innerCorner,
-    calibration.outerCorner,
-  );
-  const verticalResolved = resolveVerticalRailStrip(
-    verticalStrip,
-    framePxH,
-    calibration.innerCorner,
-    calibration.outerCorner,
-  );
+  const horizontalResolved = resolveHorizontalRailStrip(horizontalStrip, framePxV);
+  const verticalResolved = resolveVerticalRailStrip(verticalStrip, framePxH);
 
   for (const rail of rails) {
     fillRailSolid(ctx, rail, fallbackColor);
@@ -556,7 +551,7 @@ function drawCalibratedCornerSampleFrame(
         cornerImage,
         rail,
         horizontalResolved,
-        getCalibratedRailFlip(rail.id, horizontalResolved.innerTowardPositiveThickness),
+        getRailFlipFromSourceCorner(sourceCorner, rail.id),
         "horizontal",
       );
     } else {
@@ -565,7 +560,7 @@ function drawCalibratedCornerSampleFrame(
         cornerImage,
         rail,
         verticalResolved,
-        getCalibratedRailFlip(rail.id, verticalResolved.innerTowardPositiveThickness),
+        getRailFlipFromSourceCorner(sourceCorner, rail.id),
         "vertical",
       );
     }
@@ -579,7 +574,7 @@ function drawCalibratedCornerSampleFrame(
   ];
 
   for (const patch of frameCorners) {
-    const flip = getCornerFlipForFramePosition(photoCorner, patch.corner);
+    const transform = getCornerTransform(sourceCorner, patch.corner);
     drawOrientedCornerPatch(
       ctx,
       cornerImage,
@@ -588,7 +583,7 @@ function drawCalibratedCornerSampleFrame(
       cornerW,
       cornerH,
       cornerSource,
-      flip,
+      transform,
     );
   }
 }
