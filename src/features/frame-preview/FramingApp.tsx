@@ -34,8 +34,12 @@ export function FramingApp() {
           />
           <ArtworkCropper
             artworkPreviewUrl={framing.artworkPreviewUrl}
-            cropRect={framing.cropRect}
-            onCropChange={framing.setCropRect}
+            canvasSize={framing.canvasSize}
+            cropSettings={framing.cropSettings}
+            croppedArtworkUrl={framing.croppedArtworkUrl}
+            onCropSettingsChange={framing.setCropSettings}
+            onApplyCrop={framing.applyCrop}
+            onResetCrop={framing.resetCrop}
           />
           <SizeInputs
             canvasSize={framing.canvasSize}
@@ -61,8 +65,7 @@ export function FramingApp() {
 
         <main className="min-h-[400px] flex-1">
           <PreviewCanvas
-            artworkImageUrl={framing.artworkPreviewUrl}
-            cropRect={framing.cropRect}
+            artworkImageUrl={framing.artworkImageUrl}
             canvasSize={framing.canvasSize}
             frame={selectedFrame}
             customFrameTextureUrl={framing.customFrameTextureUrl}

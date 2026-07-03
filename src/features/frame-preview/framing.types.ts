@@ -5,6 +5,12 @@ export interface CropRect {
   height: number;
 }
 
+export interface CropSettings {
+  crop: { x: number; y: number };
+  zoom: number;
+  croppedAreaPixels: CropRect | null;
+}
+
 export interface CanvasSize {
   widthCm: number;
   heightCm: number;
@@ -20,7 +26,9 @@ export interface FrameDefinition {
 export interface FramingState {
   artworkFile: File | null;
   artworkPreviewUrl: string | null;
-  cropRect: CropRect | null;
+  artworkImageUrl: string | null;
+  cropSettings: CropSettings;
+  croppedArtworkUrl: string | null;
   canvasSize: CanvasSize;
   selectedFrameId: string | null;
   customFrameTextureUrl: string | null;
@@ -30,7 +38,9 @@ export interface FramingState {
 
 export interface FramingActions {
   setArtworkFile: (file: File | null) => void;
-  setCropRect: (rect: CropRect | null) => void;
+  setCropSettings: (settings: Partial<CropSettings>) => void;
+  applyCrop: () => Promise<void>;
+  resetCrop: () => void;
   setCanvasSize: (size: Partial<CanvasSize>) => void;
   setSelectedFrameId: (id: string | null) => void;
   setCustomFrameFile: (file: File | null) => void;
@@ -51,3 +61,9 @@ export interface FramedLayout {
   artX: number;
   artY: number;
 }
+
+export const DEFAULT_CROP_SETTINGS: CropSettings = {
+  crop: { x: 0, y: 0 },
+  zoom: 1,
+  croppedAreaPixels: null,
+};

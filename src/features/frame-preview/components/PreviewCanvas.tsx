@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CanvasSize, CropRect, FrameDefinition } from "../framing.types";
+import type { CanvasSize, FrameDefinition } from "../framing.types";
 import {
   computeRenderDimensions,
   drawFramedArtwork,
@@ -11,7 +11,6 @@ const PREVIEW_CANVAS_ID = "framing-preview-canvas";
 
 interface PreviewCanvasProps {
   artworkImageUrl: string | null;
-  cropRect: CropRect | null;
   canvasSize: CanvasSize;
   frame: FrameDefinition | null;
   customFrameTextureUrl: string | null;
@@ -54,7 +53,6 @@ function useLoadedImage(url: string | null | undefined) {
 
 export function PreviewCanvas({
   artworkImageUrl,
-  cropRect,
   canvasSize,
   frame,
   customFrameTextureUrl,
@@ -86,7 +84,7 @@ export function PreviewCanvas({
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
       artworkImage,
-      cropRect,
+      cropRect: null,
       canvasSize,
       frameFallbackColor,
       frameTextureImage,
@@ -94,7 +92,6 @@ export function PreviewCanvas({
     });
   }, [
     artworkImage,
-    cropRect,
     canvasSize,
     frameFallbackColor,
     frameTextureImage,
