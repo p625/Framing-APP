@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FrameDefinition, FrameSampleMode, UseFramingStateReturn } from "../../framing.types";
 import type { UseEnvironmentStateReturn } from "../../hooks/useEnvironmentState";
-import { computeRenderDimensions } from "../../renderer/drawFramedArtwork";
 import { computePreviewDimensionsSummary } from "../../utils/previewDimensions";
 import {
   computeFramedArtworkDisplayPx,
@@ -42,16 +41,6 @@ export function EnvironmentPreview({
   const sizeSummary = useMemo(
     () =>
       computePreviewDimensionsSummary(
-        framing.canvasSize,
-        framing.frameWidthCm,
-        framing.matSettings,
-      ),
-    [framing.canvasSize, framing.frameWidthCm, framing.matSettings],
-  );
-
-  const renderDimensions = useMemo(
-    () =>
-      computeRenderDimensions(
         framing.canvasSize,
         framing.frameWidthCm,
         framing.matSettings,
@@ -127,11 +116,6 @@ export function EnvironmentPreview({
     sizeSummary.totalHeightCm,
     sizeSummary.totalWidthCm,
   ]);
-
-  const cssScale =
-    displaySize && renderDimensions.width > 0
-      ? displaySize.width / renderDimensions.width
-      : 1;
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -222,32 +206,36 @@ export function EnvironmentPreview({
         draggable={false}
       />
 
-      <div
-        className={`absolute touch-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
-        style={{
-          left: `${placement.x}%`,
-          top: `${placement.y}%`,
-          transform: `translate(-50%, -50%) scale(${cssScale})`,
-          transformOrigin: "center center",
-          filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.28))",
-        }}
-        onPointerDown={handlePointerDown}
-      >
-        <PreviewCanvas
-          canvasId={ENVIRONMENT_FRAME_CANVAS_ID}
-          artworkImageUrl={framing.artworkImageUrl}
-          canvasSize={framing.canvasSize}
-          frame={selectedFrame}
-          customFrameTextureUrl={framing.customFrameTextureUrl}
-          customFrameFallbackColor={framing.customFrameFallbackColor}
-          frameSampleMode={frameSampleMode}
-          frameCornerCalibration={framing.frameCornerCalibration}
-          frameWidthCm={framing.frameWidthCm}
-          textureScale={framing.textureScale}
-          matSettings={framing.matSettings}
-          embedded
-        />
-      </div>
+      {displaySize ? (
+        <div
+          className={`absolute touch-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+          style={{
+            left: `${placement.x}%`,
+            top: `${placement.y}%`,
+            transform: "translate(-50%, -50%)",
+            width: displaySize.width,
+            height: displaySize.height,
+            filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.28))",
+          }}
+          onPointerDown={handlePointerDown}
+        >
+          <PreviewCanvas
+            canvasId={ENVIRONMENT_FRAME_CANVAS_ID}
+            artworkImageUrl={framing.artworkImageUrl}
+            canvasSize={framing.canvasSize}
+            frame={selectedFrame}
+            customFrameTextureUrl={framing.customFrameTextureUrl}
+            customFrameFallbackColor={framing.customFrameFallbackColor}
+            frameSampleMode={frameSampleMode}
+            frameCornerCalibration={framing.frameCornerCalibration}
+            frameWidthCm={framing.frameWidthCm}
+            textureScale={framing.textureScale}
+            matSettings={framing.matSettings}
+            embedded
+            displaySize={displaySize}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

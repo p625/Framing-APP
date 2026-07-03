@@ -23,7 +23,6 @@ import {
   type ResolvedRailStrip,
 } from "../utils/frameCalibration";
 
-const BACKGROUND_COLOR = "#e8e8ec";
 const PLACEHOLDER_ART_COLOR = "#fafafa";
 const PLACEHOLDER_BORDER_COLOR = "#d4d4d8";
 const PLACEHOLDER_TEXT_COLOR = "#a1a1aa";
@@ -68,9 +67,8 @@ export function computeFramedLayout(
   const totalHeightCm = matOuterHeightCm + frameWidthCm * 2;
   const totalAspect = totalWidthCm / totalHeightCm;
 
-  const padding = Math.min(canvasWidth, canvasHeight) * 0.08;
-  const availW = Math.max(canvasWidth - padding * 2, 1);
-  const availH = Math.max(canvasHeight - padding * 2, 1);
+  const availW = Math.max(canvasWidth, 1);
+  const availH = Math.max(canvasHeight, 1);
 
   let totalPxW: number;
   let totalPxH: number;
@@ -981,8 +979,6 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
   } = options;
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-  ctx.fillStyle = BACKGROUND_COLOR;
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   const layout = computeFramedLayout(
     canvasWidth,

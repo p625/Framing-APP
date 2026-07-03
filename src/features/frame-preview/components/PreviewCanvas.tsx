@@ -29,6 +29,8 @@ interface PreviewCanvasProps {
   matSettings: MatSettings;
   fillContainer?: boolean;
   embedded?: boolean;
+  /** When set, canvas is displayed at exact screen pixels (e.g. environment wall sizing). */
+  displaySize?: { width: number; height: number } | null;
   canvasId?: string;
 }
 
@@ -79,6 +81,7 @@ export function PreviewCanvas({
   matSettings,
   fillContainer = false,
   embedded = false,
+  displaySize = null,
   canvasId = PREVIEW_CANVAS_ID,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -139,11 +142,28 @@ export function PreviewCanvas({
     redraw();
   }, [renderDimensions, redraw]);
 
+  if (displaySize && artworkImageUrl) {
+    return (
+      <canvas
+        id={canvasId}
+        ref={canvasRef}
+        width={renderDimensions.width}
+        height={renderDimensions.height}
+        className="block h-full w-full"
+        style={{
+          width: displaySize.width,
+          height: displaySize.height,
+        }}
+        aria-label="Framed artwork preview"
+      />
+    );
+  }
+
   return (
     <div
       className={
         embedded
-          ? "flex items-center justify-center p-2"
+          ? "flex items-center justify-center"
           : fillContainer
             ? "flex h-full min-h-0 items-center justify-center fs-canvas-bg p-6"
             : "flex h-full min-h-[400px] flex-col"
@@ -164,11 +184,23 @@ export function PreviewCanvas({
             ref={canvasRef}
             width={renderDimensions.width}
             height={renderDimensions.height}
-            className={`block rounded-xl bg-white shadow-lg ${
-              fillContainer
-                ? "max-h-full max-w-full"
-                : "max-h-[min(70vh,640px)] max-w-full shadow-sm"
-            }`}
+            className={
+              displaySize
+                ? "block"
+                : `block ${
+                    fillContainer
+                      ? "max-h-full max-w-full"
+                      : "max-h-[min(70vh,640px)] max-w-full"
+                  }`
+            }
+            style={
+              displaySize
+                ? {
+                    width: displaySize.width,
+                    height: displaySize.height,
+                  }
+                : undefined
+            }
             aria-label="Framed artwork preview"
           />
         ) : (

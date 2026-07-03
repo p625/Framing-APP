@@ -6,7 +6,7 @@ import { clamp01 } from "../../utils/imageLayout";
 import {
   containerPointToNormalized,
   DEFAULT_ENVIRONMENT_CALIBRATION,
-  normalizedRectToContainScreen,
+  normalizedRectToCoverScreen,
 } from "../../utils/environmentCalibration";
 
 interface EnvironmentWallCalibrationEditorProps {
@@ -69,7 +69,7 @@ export function EnvironmentWallCalibrationEditor({
 
   const screenRect =
     naturalSize.width > 0 && containerSize.width > 0
-      ? normalizedRectToContainScreen(
+      ? normalizedRectToCoverScreen(
           calibration.wallRect,
           containerSize.width,
           containerSize.height,
@@ -219,7 +219,7 @@ export function EnvironmentWallCalibrationEditor({
     <div className="flex h-full min-h-0 flex-col gap-3">
       <p className="fs-caption text-[11px]">
         Draw a rectangle over the usable wall area, then enter its real-world size in
-        centimetres.
+        centimetres (e.g. 400 for a 4&nbsp;m wide wall).
       </p>
 
       <div
@@ -231,7 +231,7 @@ export function EnvironmentWallCalibrationEditor({
         <img
           src={imageUrl}
           alt=""
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
           draggable={false}
         />
 

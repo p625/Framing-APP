@@ -1,8 +1,5 @@
 import type { EnvironmentCalibration, NormalizedRect } from "../framing.types";
-import {
-  computeObjectContainLayout,
-  type ImageLayout,
-} from "./imageLayout";
+import type { ImageLayout } from "./imageLayout";
 
 export function computeObjectCoverLayout(
   containerWidth: number,
@@ -50,6 +47,25 @@ export function normalizedRectToScreenPx(
   };
 }
 
+export function computeWallPixelsPerCm(
+  calibration: EnvironmentCalibration,
+  layout: ImageLayout,
+  imageWidth: number,
+  imageHeight: number,
+): { x: number; y: number } {
+  const wallScreen = normalizedRectToScreenPx(
+    calibration.wallRect,
+    imageWidth,
+    imageHeight,
+    layout,
+  );
+
+  return {
+    x: wallScreen.width / calibration.realWallWidthCm,
+    y: wallScreen.height / calibration.realWallHeightCm,
+  };
+}
+
 export function computeFramedArtworkDisplayPx(
   calibration: EnvironmentCalibration,
   layout: ImageLayout,
@@ -59,18 +75,17 @@ export function computeFramedArtworkDisplayPx(
   framedHeightCm: number,
   fineScale: number,
 ): { width: number; height: number } {
-  const wallScreen = normalizedRectToScreenPx(
-    calibration.wallRect,
+  const pxPerCm = computeWallPixelsPerCm(
+    calibration,
+    layout,
     imageWidth,
     imageHeight,
-    layout,
   );
+  const scale = Math.sqrt(pxPerCm.x * pxPerCm.y) * fineScale;
 
   return {
-    width:
-      (framedWidthCm / calibration.realWallWidthCm) * wallScreen.width * fineScale,
-    height:
-      (framedHeightCm / calibration.realWallHeightCm) * wallScreen.height * fineScale,
+    width: framedWidthCm * scale,
+    height: framedHeightCm * scale,
   };
 }
 
@@ -117,7 +132,7 @@ export function containerPointToNormalized(
   imageWidth: number,
   imageHeight: number,
 ): { x: number; y: number } | null {
-  const layout = computeObjectContainLayout(
+  const layout = computeObjectCoverLayout(
     containerWidth,
     containerHeight,
     imageWidth,
@@ -137,14 +152,14 @@ export function containerPointToNormalized(
   };
 }
 
-export function normalizedRectToContainScreen(
+export function normalizedRectToCoverScreen(
   rect: NormalizedRect,
   containerWidth: number,
   containerHeight: number,
   imageWidth: number,
   imageHeight: number,
 ): { x: number; y: number; width: number; height: number } {
-  const layout = computeObjectContainLayout(
+  const layout = computeObjectCoverLayout(
     containerWidth,
     containerHeight,
     imageWidth,
@@ -152,6 +167,9 @@ export function normalizedRectToContainScreen(
   );
   return normalizedRectToScreenPx(rect, imageWidth, imageHeight, layout);
 }
+
+/** @deprecated Use normalizedRectToCoverScreen — preview uses object-cover. */
+export const normalizedRectToContainScreen = normalizedRectToCoverScreen;
 
 export const DEFAULT_ENVIRONMENT_CALIBRATION: EnvironmentCalibration = {
   wallRect: { x: 0.1, y: 0.1, width: 0.8, height: 0.65 },
