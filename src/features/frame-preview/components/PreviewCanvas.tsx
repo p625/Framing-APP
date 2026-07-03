@@ -138,7 +138,7 @@ export function PreviewCanvas({
     <div
       className={
         fillContainer
-          ? "flex h-full min-h-0 items-center justify-center bg-zinc-100 p-6"
+          ? "flex h-full min-h-0 items-center justify-center fs-canvas-bg p-6"
           : "flex h-full min-h-[400px] flex-col"
       }
     >
@@ -161,9 +161,9 @@ export function PreviewCanvas({
             aria-label="Framed artwork preview"
           />
         ) : (
-          <div className="max-w-md rounded-2xl border border-dashed border-zinc-300 bg-white px-8 py-12 text-center shadow-sm">
-            <p className="text-sm font-medium text-zinc-700">Your framed preview</p>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+          <div className="max-w-md rounded-[var(--fs-radius-lg)] border border-dashed border-fs-border-strong bg-fs-surface px-8 py-12 text-center shadow-sm">
+            <p className="fs-heading text-sm">Your framed preview</p>
+            <p className="mt-2 text-xs leading-relaxed text-fs-muted">
               Choose artwork and a frame from the sidebar. Adjust size and passe-partout to
               see a live preview here.
             </p>

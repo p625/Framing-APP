@@ -7,11 +7,7 @@ interface EditorToolbarProps {
 }
 
 export function EditorToolbar({ children }: EditorToolbarProps) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
-      {children}
-    </div>
-  );
+  return <div className="fs-toolbar">{children}</div>;
 }
 
 interface EditorToolbarButtonProps {
@@ -27,19 +23,19 @@ export function EditorToolbarButton({
   disabled,
   variant = "default",
 }: EditorToolbarButtonProps) {
-  const classes =
+  const variantClass =
     variant === "primary"
-      ? "bg-zinc-900 text-white hover:bg-zinc-800"
+      ? "fs-btn-primary"
       : variant === "ghost"
-        ? "border-transparent text-zinc-600 hover:bg-zinc-100"
-        : "border-zinc-200 text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50";
+        ? "fs-btn-ghost"
+        : "fs-btn-secondary";
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${classes}`}
+      className={`fs-btn ${variantClass}`}
     >
       {label}
     </button>

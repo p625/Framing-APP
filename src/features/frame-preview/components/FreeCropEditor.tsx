@@ -542,12 +542,12 @@ export function FreeCropEditor({
   return (
     <div className={isWorkspace ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
       {isWorkspace ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
+        <div className="fs-toolbar">
           <button
             type="button"
             onClick={() => handleZoomChange(zoom - EDITOR_ZOOM_STEP)}
             disabled={zoom <= EDITOR_MIN_ZOOM}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+            className="fs-btn fs-btn-secondary"
           >
             Zoom −
           </button>
@@ -555,15 +555,11 @@ export function FreeCropEditor({
             type="button"
             onClick={() => handleZoomChange(zoom + EDITOR_ZOOM_STEP)}
             disabled={zoom >= EDITOR_MAX_ZOOM}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+            className="fs-btn fs-btn-secondary"
           >
             Zoom +
           </button>
-          <button
-            type="button"
-            onClick={resetView}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-          >
+          <button type="button" onClick={resetView} className="fs-btn fs-btn-secondary">
             Fit
           </button>
           {workspaceActions ? <div className="ml-auto flex gap-2">{workspaceActions}</div> : null}

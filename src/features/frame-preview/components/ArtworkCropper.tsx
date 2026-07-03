@@ -74,25 +74,17 @@ export function ArtworkCropper({
 
   const workspaceActions = isWorkspace ? (
     <>
-      <button
-        type="button"
-        onClick={onResetCrop}
-        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-      >
+      <button type="button" onClick={onResetCrop} className="fs-btn fs-btn-secondary">
         Reset
       </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-      >
+      <button type="button" onClick={onCancel} className="fs-btn fs-btn-ghost">
         Cancel
       </button>
       <button
         type="button"
         onClick={handleApply}
         disabled={!canApply}
-        className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-40"
+        className="fs-btn fs-btn-primary"
       >
         {isApplying ? "Applying…" : "Apply"}
       </button>

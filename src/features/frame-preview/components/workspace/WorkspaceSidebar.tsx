@@ -8,6 +8,7 @@ import { FrameWidthInput } from "../FrameWidthInput";
 import { MatControls } from "../MatControls";
 import { SizeInputs } from "../SizeInputs";
 import { CollapsibleSection } from "../ui/CollapsibleSection";
+import { BrandLockup } from "../brand/BrandLockup";
 import { FrameCatalogue } from "./FrameCatalogue";
 import { SavedArtworksGrid } from "./SavedArtworksGrid";
 import type { FrameCatalogueSelection } from "../../ui/appUi.types";
@@ -39,7 +40,10 @@ export function WorkspaceSidebar({
   const canCrop = Boolean(framing.correctedArtworkUrl ?? framing.artworkPreviewUrl);
 
   return (
-    <nav className="flex h-full flex-col overflow-y-auto bg-white">
+    <nav className="flex h-full flex-col overflow-y-auto bg-fs-surface">
+      <div className="border-b border-fs-border px-4 py-3 lg:hidden">
+        <BrandLockup compact showTagline />
+      </div>
       <CollapsibleSection
         id="artwork"
         title="Artwork"
@@ -67,7 +71,7 @@ export function WorkspaceSidebar({
             type="button"
             disabled={!hasArtwork}
             onClick={onOpenPerspective}
-            className="rounded-xl border border-zinc-200 px-3 py-3 text-xs font-medium text-zinc-800 transition-colors hover:border-zinc-300 hover:bg-zinc-50 disabled:opacity-40"
+            className="fs-btn fs-btn-secondary w-full py-3"
           >
             Perspective
           </button>
@@ -75,12 +79,12 @@ export function WorkspaceSidebar({
             type="button"
             disabled={!canCrop}
             onClick={onOpenCrop}
-            className="rounded-xl border border-zinc-200 px-3 py-3 text-xs font-medium text-zinc-800 transition-colors hover:border-zinc-300 hover:bg-zinc-50 disabled:opacity-40"
+            className="fs-btn fs-btn-secondary w-full py-3"
           >
             Crop
           </button>
         </div>
-        <p className="text-[11px] leading-relaxed text-zinc-400">
+        <p className="fs-caption text-[11px]">
           Opens the editor in the main workspace. Your sidebar stays clean.
         </p>
       </CollapsibleSection>
@@ -122,7 +126,7 @@ export function WorkspaceSidebar({
         <button
           type="button"
           onClick={onCreateProfile}
-          className="w-full rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-xs text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700"
+          className="fs-btn fs-btn-ghost w-full border border-dashed border-fs-border-strong py-2"
         >
           Create new frame profile…
         </button>
@@ -135,7 +139,6 @@ export function WorkspaceSidebar({
         onToggle={onToggleSection}
       >
         <ExportPanel />
-        <p className="text-[11px] text-zinc-400">PDF export coming soon.</p>
       </CollapsibleSection>
     </nav>
   );

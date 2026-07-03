@@ -88,7 +88,7 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-200 bg-white p-4 shadow-sm">
+      <aside className="fs-sidebar w-72 shrink-0 overflow-y-auto p-4">
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-700" htmlFor="profile-name">
@@ -98,7 +98,7 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
               id="profile-name"
               value={profileName}
               onChange={(event) => setProfileName(event.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm outline-none focus:border-zinc-400"
+              className="fs-input text-sm"
             />
           </div>
 
@@ -165,7 +165,7 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
             <button
               type="button"
               onClick={() => void handleSave()}
-              className="rounded-lg bg-zinc-900 px-3 py-2 text-xs font-medium text-white hover:bg-zinc-800"
+              className="fs-btn fs-btn-primary w-full py-2"
             >
               Save profile
             </button>
@@ -174,7 +174,7 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
                 <button
                   type="button"
                   onClick={() => void handleRename()}
-                  className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                  className="fs-btn fs-btn-secondary w-full py-2"
                 >
                   Rename
                 </button>
@@ -194,10 +194,10 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col bg-zinc-100">
+      <main className="flex min-w-0 flex-1 flex-col fs-canvas-bg">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 xl:grid-cols-2">
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <div className="border-b border-zinc-100 px-4 py-2 text-xs font-medium text-zinc-700">
+          <div className="fs-panel flex min-h-0 flex-col overflow-hidden">
+            <div className="border-b border-fs-border px-4 py-2 text-xs font-medium text-fs-primary">
               Calibration
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-3">
@@ -221,8 +221,8 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <div className="border-b border-zinc-100 px-4 py-2 text-xs font-medium text-zinc-700">
+          <div className="fs-panel flex min-h-0 flex-col overflow-hidden">
+            <div className="border-b border-fs-border px-4 py-2 text-xs font-medium text-fs-primary">
               Preview
             </div>
             <div className="min-h-0 flex-1">
@@ -267,7 +267,7 @@ function FrameWidthInputCompact({
         step={0.1}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm outline-none focus:border-zinc-400"
+        className="fs-input text-sm"
       />
     </div>
   );

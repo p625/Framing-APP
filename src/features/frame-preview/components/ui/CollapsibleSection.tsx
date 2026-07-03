@@ -19,16 +19,16 @@ export function CollapsibleSection({
   children,
 }: CollapsibleSectionProps) {
   return (
-    <section className="border-b border-zinc-100">
+    <section className="border-b border-fs-border">
       <button
         type="button"
         onClick={() => onToggle(id)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-zinc-50"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-fs-bg-elevated"
         aria-expanded={isOpen}
       >
-        <span className="text-sm font-medium text-zinc-900">{title}</span>
+        <span className="fs-subheading text-sm">{title}</span>
         <span
-          className={`text-zinc-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          className={`text-fs-gold transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
           aria-hidden
         >
           ▾

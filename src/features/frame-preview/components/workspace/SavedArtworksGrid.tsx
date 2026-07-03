@@ -132,7 +132,7 @@ export function SavedArtworksGrid({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-zinc-500">Saved locally in this browser.</p>
+      <p className="fs-caption">Saved locally in this browser.</p>
 
       <div className="flex gap-2">
         <input
@@ -140,19 +140,19 @@ export function SavedArtworksGrid({
           value={saveName}
           onChange={(event) => setSaveName(event.target.value)}
           placeholder="Save current work as…"
-          className="min-w-0 flex-1 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs outline-none focus:border-zinc-400"
+          className="fs-input min-w-0 flex-1 text-xs"
         />
         <button
           type="button"
           onClick={() => void handleSaveCurrent()}
-          className="shrink-0 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800"
+          className="fs-btn fs-btn-primary shrink-0"
         >
           Save
         </button>
       </div>
 
       {projects.length === 0 ? (
-        <p className="text-xs text-zinc-400">No saved artworks yet.</p>
+        <p className="fs-caption">No saved artworks yet.</p>
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {projects.map((project) => {
@@ -168,9 +168,9 @@ export function SavedArtworksGrid({
                     void handleLoad(project.id);
                   }
                 }}
-                className="group overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                className="fs-thumbnail group cursor-pointer"
               >
-                <div className="aspect-[4/3] bg-zinc-100">
+                <div className="aspect-[4/3] bg-fs-bg-elevated">
                   {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

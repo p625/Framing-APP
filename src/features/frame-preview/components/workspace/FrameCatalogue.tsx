@@ -91,10 +91,8 @@ export function FrameCatalogue({
             key={frame.id}
             type="button"
             onClick={() => onSelectBuiltin(frame.id)}
-            className={`overflow-hidden rounded-xl border text-left shadow-sm transition-all hover:shadow-md ${
-              isSelected("builtin", frame.id)
-                ? "border-zinc-900 ring-2 ring-zinc-900/10"
-                : "border-zinc-200"
+            className={`fs-card text-left ${
+              isSelected("builtin", frame.id) ? "fs-card-selected" : ""
             }`}
           >
             <div
@@ -111,8 +109,8 @@ export function FrameCatalogue({
               ) : null}
             </div>
             <div className="px-2 py-2">
-              <p className="text-xs font-medium text-zinc-800">{frame.name}</p>
-              <p className="text-[10px] text-zinc-400">Library</p>
+              <p className="text-xs font-medium text-fs-primary">{frame.name}</p>
+              <p className="text-[10px] text-fs-muted">Library</p>
             </div>
           </button>
         ))}
@@ -122,13 +120,11 @@ export function FrameCatalogue({
             key={profile.id}
             type="button"
             onClick={() => void handleProfileClick(profile.id)}
-            className={`overflow-hidden rounded-xl border text-left shadow-sm transition-all hover:shadow-md ${
-              isSelected("profile", profile.id)
-                ? "border-zinc-900 ring-2 ring-zinc-900/10"
-                : "border-zinc-200"
+            className={`fs-card text-left ${
+              isSelected("profile", profile.id) ? "fs-card-selected" : ""
             }`}
           >
-            <div className="aspect-[5/3] bg-zinc-100">
+            <div className="aspect-[5/3] bg-fs-bg-elevated">
               {thumbnails[profile.id] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -139,8 +135,8 @@ export function FrameCatalogue({
               ) : null}
             </div>
             <div className="px-2 py-2">
-              <p className="text-xs font-medium text-zinc-800">{profile.name}</p>
-              <p className="text-[10px] text-zinc-400">Your profile</p>
+              <p className="text-xs font-medium text-fs-primary">{profile.name}</p>
+              <p className="text-[10px] text-fs-gold">Your profile</p>
             </div>
           </button>
         ))}
@@ -149,7 +145,7 @@ export function FrameCatalogue({
       <button
         type="button"
         onClick={() => void refreshProfiles()}
-        className="text-[10px] text-zinc-400 hover:text-zinc-600"
+        className="text-[10px] text-fs-muted-light hover:text-fs-gold"
       >
         Refresh profiles
       </button>

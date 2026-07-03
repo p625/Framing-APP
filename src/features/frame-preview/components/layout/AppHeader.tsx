@@ -1,6 +1,7 @@
 "use client";
 
 import type { AppMode } from "../../ui/appUi.types";
+import { BrandLockup } from "../brand/BrandLockup";
 
 interface AppHeaderProps {
   mode: AppMode;
@@ -18,23 +19,21 @@ export function AppHeader({
   const isProfileEditor = mode === "profile-editor";
 
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-5 py-3 shadow-sm">
-      <div>
-        <h1 className="text-base font-semibold tracking-tight text-zinc-900">
-          {isProfileEditor ? "Frame Profile Editor" : "Framing Studio"}
-        </h1>
-        <p className="text-xs text-zinc-500">
-          {isProfileEditor
-            ? "Create and calibrate frame profiles for your catalogue."
-            : "Professional framing preview — focused on your artwork."}
-        </p>
-      </div>
+    <header className="fs-header flex shrink-0 items-center justify-between px-5 py-3">
+      <BrandLockup
+        showTagline={!isProfileEditor}
+        subtitle={
+          isProfileEditor
+            ? "Frame profile editor — calibrate samples for your catalogue"
+            : undefined
+        }
+      />
       <div className="flex items-center gap-2">
         {isProfileEditor ? (
           <button
             type="button"
             onClick={onExitProfileEditor}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+            className="fs-btn fs-btn-secondary"
           >
             Back to workspace
           </button>
@@ -43,14 +42,14 @@ export function AppHeader({
             <button
               type="button"
               onClick={onCreateProfile}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+              className="fs-btn fs-btn-gold"
             >
               New frame profile
             </button>
             <button
               type="button"
               onClick={onOpenSettings}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+              className="fs-btn fs-btn-secondary"
               aria-label="Open frame profile editor"
             >
               Settings

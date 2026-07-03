@@ -64,7 +64,7 @@ export function FramingApp() {
 
   if (ui.appMode === "profile-editor") {
     return (
-      <div className="flex h-screen flex-col bg-zinc-50">
+      <div className="flex h-screen flex-col bg-fs-bg">
         <AppHeader
           mode="profile-editor"
           onOpenSettings={handleOpenSettings}
@@ -77,7 +77,7 @@ export function FramingApp() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-100">
+    <div className="flex h-screen flex-col bg-fs-bg">
       <AppHeader
         mode="workspace"
         onOpenSettings={handleOpenSettings}
@@ -86,7 +86,7 @@ export function FramingApp() {
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-72 shrink-0 border-r border-zinc-200 bg-white shadow-sm xl:w-80">
+        <aside className="fs-sidebar w-72 shrink-0 overflow-hidden xl:w-80">
           <WorkspaceSidebar
             framing={framing}
             openSection={ui.openSection}

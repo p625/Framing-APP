@@ -12,7 +12,7 @@ export function SizeInputs({ canvasSize, onCanvasSizeChange }: SizeInputsProps) 
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-3">
         <label className="space-y-1">
-          <span className="text-xs text-zinc-500">Width (cm)</span>
+          <span className="fs-caption">Width (cm)</span>
           <input
             type="number"
             min={1}
@@ -21,11 +21,11 @@ export function SizeInputs({ canvasSize, onCanvasSizeChange }: SizeInputsProps) 
             onChange={(event) =>
               onCanvasSizeChange({ widthCm: parseFloat(event.target.value) || 0 })
             }
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="fs-input"
           />
         </label>
         <label className="space-y-1">
-          <span className="text-xs text-zinc-500">Height (cm)</span>
+          <span className="fs-caption">Height (cm)</span>
           <input
             type="number"
             min={1}
@@ -34,11 +34,11 @@ export function SizeInputs({ canvasSize, onCanvasSizeChange }: SizeInputsProps) 
             onChange={(event) =>
               onCanvasSizeChange({ heightCm: parseFloat(event.target.value) || 0 })
             }
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="fs-input"
           />
         </label>
       </div>
-      <p className="text-xs text-zinc-500">
+      <p className="fs-caption">
         Used for real-world framing proportions. Does not change an applied crop.
       </p>
     </div>

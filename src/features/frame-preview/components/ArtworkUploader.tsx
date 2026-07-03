@@ -9,20 +9,20 @@ export function ArtworkUploader({ artworkFile, onArtworkSelect }: ArtworkUploade
   return (
     <section className="space-y-2">
       {artworkFile ? (
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
-          <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2">
-            <span className="truncate text-xs font-medium text-zinc-700">
+        <div className="fs-card overflow-hidden">
+          <div className="flex items-center justify-between gap-2 border-b border-fs-border px-3 py-2">
+            <span className="truncate text-xs font-medium text-fs-primary">
               {artworkFile.name}
             </span>
             <button
               type="button"
               onClick={() => onArtworkSelect(null)}
-              className="shrink-0 text-xs text-zinc-500 hover:text-zinc-900"
+              className="fs-btn fs-btn-ghost shrink-0 px-2 py-1"
             >
               Remove
             </button>
           </div>
-          <label className="flex cursor-pointer items-center justify-center px-3 py-2 text-xs text-zinc-600 hover:bg-zinc-100">
+          <label className="flex cursor-pointer items-center justify-center px-3 py-2 text-xs text-fs-muted hover:bg-fs-bg-elevated">
             Replace photo
             <input
               type="file"
@@ -36,9 +36,9 @@ export function ArtworkUploader({ artworkFile, onArtworkSelect }: ArtworkUploade
           </label>
         </div>
       ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 transition-colors hover:border-zinc-400 hover:bg-zinc-100">
-          <span className="text-sm font-medium text-zinc-700">Upload artwork photo</span>
-          <span className="mt-1 text-center text-xs text-zinc-500">
+        <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--fs-radius-lg)] border border-dashed border-fs-border-strong bg-fs-bg-elevated px-4 py-6 transition-colors hover:border-fs-gold hover:bg-fs-gold-muted/40">
+          <span className="text-sm font-medium text-fs-primary">Upload artwork photo</span>
+          <span className="mt-1 text-center text-xs text-fs-muted">
             Photograph the artwork on a wall or table. PNG, JPG, or WebP.
           </span>
           <input

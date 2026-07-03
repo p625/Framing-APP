@@ -360,12 +360,12 @@ export function PerspectiveEditor({
   return (
     <div className={isWorkspace ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
       {isWorkspace ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
+        <div className="fs-toolbar">
           <button
             type="button"
             onClick={() => handleZoomChange(zoom - ZOOM_STEP)}
             disabled={zoom <= MIN_ZOOM}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+            className="fs-btn fs-btn-secondary"
           >
             Zoom −
           </button>
@@ -373,37 +373,25 @@ export function PerspectiveEditor({
             type="button"
             onClick={() => handleZoomChange(zoom + ZOOM_STEP)}
             disabled={zoom >= MAX_ZOOM}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+            className="fs-btn fs-btn-secondary"
           >
             Zoom +
           </button>
-          <button
-            type="button"
-            onClick={resetView}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-          >
+          <button type="button" onClick={resetView} className="fs-btn fs-btn-secondary">
             Fit
           </button>
-          <button
-            type="button"
-            onClick={onReset}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-          >
+          <button type="button" onClick={onReset} className="fs-btn fs-btn-secondary">
             Reset
           </button>
           <div className="ml-auto flex gap-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-            >
+            <button type="button" onClick={onCancel} className="fs-btn fs-btn-ghost">
               Cancel
             </button>
             <button
               type="button"
               onClick={handleStraighten}
               disabled={isProcessing}
-              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-40"
+              className="fs-btn fs-btn-primary"
             >
               {isProcessing ? "Applying…" : "Apply"}
             </button>
@@ -507,7 +495,7 @@ export function PerspectiveEditor({
             type="button"
             onClick={handleStraighten}
             disabled={isProcessing}
-            className="flex-1 rounded-md bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300"
+            className="flex-1 fs-btn fs-btn-primary py-2"
           >
             {isProcessing ? "Straightening…" : "Straighten image"}
           </button>
@@ -522,7 +510,7 @@ export function PerspectiveEditor({
       ) : null}
 
       {!isWorkspace && correctedArtworkUrl ? (
-        <p className="text-xs font-medium text-emerald-600">
+        <p className="text-xs font-medium text-fs-success">
           Perspective correction applied.
         </p>
       ) : null}

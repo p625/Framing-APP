@@ -14,10 +14,10 @@ export function FramingWarnings({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 px-4 pt-3">
       {showNotStraightened ? (
         <p
-          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          className="rounded-lg border border-fs-warning/25 bg-fs-warning-bg px-3 py-2 text-xs text-fs-warning"
           role="status"
         >
           Artwork has not been straightened yet. Mark corners and run straighten for
@@ -26,7 +26,7 @@ export function FramingWarnings({
       ) : null}
       {showMissingCalibration ? (
         <p
-          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          className="rounded-lg border border-fs-warning/25 bg-fs-warning-bg px-3 py-2 text-xs text-fs-warning"
           role="status"
         >
           Corner frame sample is missing calibration. Mark inner/outer corners and
