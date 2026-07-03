@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CanvasSize, FrameDefinition, MatSettings } from "../framing.types";
+import type {
+  CanvasSize,
+  FrameDefinition,
+  FrameSampleMode,
+  MatSettings,
+} from "../framing.types";
 import {
   computeRenderDimensions,
   drawFramedArtwork,
@@ -14,6 +19,7 @@ interface PreviewCanvasProps {
   canvasSize: CanvasSize;
   frame: FrameDefinition | null;
   customFrameTextureUrl: string | null;
+  frameSampleMode: FrameSampleMode;
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
@@ -58,6 +64,7 @@ export function PreviewCanvas({
   canvasSize,
   frame,
   customFrameTextureUrl,
+  frameSampleMode,
   frameWidthCm,
   textureScale,
   matSettings,
@@ -92,6 +99,7 @@ export function PreviewCanvas({
       canvasSize,
       frameFallbackColor,
       frameTextureImage,
+      frameSampleMode,
       frameWidthCm,
       textureScale,
       matSettings,
@@ -101,6 +109,7 @@ export function PreviewCanvas({
     canvasSize,
     frameFallbackColor,
     frameTextureImage,
+    frameSampleMode,
     frameWidthCm,
     textureScale,
     matSettings,

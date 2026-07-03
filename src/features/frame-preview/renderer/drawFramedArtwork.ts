@@ -1,4 +1,10 @@
-import type { CanvasSize, FramedLayout, MatSettings, Point } from "../framing.types";
+import type {
+  CanvasSize,
+  FrameSampleMode,
+  FramedLayout,
+  MatSettings,
+  Point,
+} from "../framing.types";
 
 const BACKGROUND_COLOR = "#e8e8ec";
 const PLACEHOLDER_ART_COLOR = "#fafafa";
@@ -14,6 +20,7 @@ export interface DrawFramedArtworkOptions {
   canvasSize: CanvasSize;
   frameFallbackColor: string;
   frameTextureImage: HTMLImageElement | null;
+  frameSampleMode: FrameSampleMode;
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
@@ -239,37 +246,152 @@ function fillRail(
   ctx.restore();
 }
 
-function drawMiteredFrame(
+function fillRailSolid(
+  ctx: CanvasRenderingContext2D,
+  rail: FrameRail,
+  color: string,
+): void {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  tracePolygon(ctx, rail.points);
+  ctx.fill();
+}
+
+function drawFrameShadow(
   ctx: CanvasRenderingContext2D,
   layout: FramedLayout,
-  fill: string | CanvasPattern,
   fallbackColor: string,
-  withShadow: boolean,
 ): void {
   const rails = getFrameRails(layout);
 
   ctx.save();
-
-  if (withShadow) {
-    ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
-    ctx.shadowBlur = layout.totalPxW * 0.028;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = layout.totalPxW * 0.014;
-  }
+  ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
+  ctx.shadowBlur = layout.totalPxW * 0.028;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = layout.totalPxW * 0.014;
 
   for (const rail of rails) {
-    ctx.beginPath();
-    tracePolygon(ctx, rail.points);
-    ctx.fillStyle = fallbackColor;
-    ctx.fill();
+    fillRailSolid(ctx, rail, fallbackColor);
   }
 
   ctx.restore();
+}
 
-  if (!withShadow) {
-    for (const rail of rails) {
-      fillRail(ctx, rail, fill);
-    }
+function drawTextureFrame(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+  fill: string | CanvasPattern,
+): void {
+  for (const rail of getFrameRails(layout)) {
+    fillRail(ctx, rail, fill);
+  }
+}
+
+function drawRailStrip(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  sourceX: number,
+  sourceY: number,
+  sourceW: number,
+  sourceH: number,
+): void {
+  if (width <= 0 || height <= 0) return;
+  ctx.drawImage(image, sourceX, sourceY, sourceW, sourceH, x, y, width, height);
+}
+
+function drawCornerSampleFrame(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+  cornerImage: HTMLImageElement,
+  fallbackColor: string,
+): void {
+  const rails = getFrameRails(layout);
+  const { offsetX: ox, offsetY: oy, totalPxW, totalPxH, framePxH, framePxV } =
+    layout;
+  const outerRight = ox + totalPxW;
+  const outerBottom = oy + totalPxH;
+  const cornerW = Math.max(framePxH * 2.2, 8);
+  const cornerH = Math.max(framePxV * 2.2, 8);
+  const imgW = cornerImage.naturalWidth;
+  const imgH = cornerImage.naturalHeight;
+  const stripSourceW = Math.max(1, Math.floor(imgW * 0.15));
+  const stripSourceH = Math.max(1, Math.floor(imgH * 0.15));
+
+  for (const rail of rails) {
+    fillRailSolid(ctx, rail, fallbackColor);
+  }
+
+  const topStripY = oy;
+  const bottomStripY = outerBottom - framePxV;
+  const leftStripX = ox;
+  const rightStripX = outerRight - framePxH;
+
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    ox + cornerW,
+    topStripY,
+    totalPxW - cornerW * 2,
+    framePxV,
+    stripSourceW,
+    0,
+    imgW - stripSourceW * 2,
+    stripSourceH,
+  );
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    ox + cornerW,
+    bottomStripY,
+    totalPxW - cornerW * 2,
+    framePxV,
+    stripSourceW,
+    imgH - stripSourceH,
+    imgW - stripSourceW * 2,
+    stripSourceH,
+  );
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    leftStripX,
+    oy + cornerH,
+    framePxH,
+    totalPxH - cornerH * 2,
+    0,
+    stripSourceH,
+    stripSourceW,
+    imgH - stripSourceH * 2,
+  );
+  drawRailStrip(
+    ctx,
+    cornerImage,
+    rightStripX,
+    oy + cornerH,
+    framePxH,
+    totalPxH - cornerH * 2,
+    imgW - stripSourceW,
+    stripSourceH,
+    stripSourceW,
+    imgH - stripSourceH * 2,
+  );
+
+  const patches = [
+    { x: ox, y: oy, flipX: false, flipY: false },
+    { x: outerRight - cornerW, y: oy, flipX: true, flipY: false },
+    { x: outerRight - cornerW, y: outerBottom - cornerH, flipX: true, flipY: true },
+    { x: ox, y: outerBottom - cornerH, flipX: false, flipY: true },
+  ];
+
+  for (const patch of patches) {
+    ctx.save();
+    ctx.translate(patch.x + cornerW / 2, patch.y + cornerH / 2);
+    ctx.scale(patch.flipX ? -1 : 1, patch.flipY ? -1 : 1);
+    ctx.drawImage(cornerImage, -cornerW / 2, -cornerH / 2, cornerW, cornerH);
+    ctx.restore();
   }
 }
 
@@ -277,28 +399,41 @@ function drawCornerSeams(
   ctx: CanvasRenderingContext2D,
   layout: FramedLayout,
 ): void {
-  const { offsetX: ox, offsetY: oy, totalPxW, totalPxH, framePxH, framePxV } =
-    layout;
+  const {
+    offsetX: ox,
+    offsetY: oy,
+    totalPxW,
+    totalPxH,
+    framePxH,
+    framePxV,
+    matX,
+    matY,
+    matOuterPxW,
+    matOuterPxH,
+  } = layout;
+
   const outerRight = ox + totalPxW;
   const outerBottom = oy + totalPxH;
+  const innerRight = matX + matOuterPxW;
+  const innerBottom = matY + matOuterPxH;
   const lineWidth = Math.max(0.5, Math.min(framePxH, framePxV) * 0.045);
 
   const seams: [Point, Point][] = [
     [
-      { x: ox + framePxH, y: oy },
-      { x: ox, y: oy + framePxV },
+      { x: matX, y: matY },
+      { x: ox, y: oy },
     ],
     [
-      { x: outerRight - framePxH, y: oy },
-      { x: outerRight, y: oy + framePxV },
+      { x: innerRight, y: matY },
+      { x: outerRight, y: oy },
     ],
     [
-      { x: outerRight, y: outerBottom - framePxV },
-      { x: outerRight - framePxH, y: outerBottom },
+      { x: innerRight, y: innerBottom },
+      { x: outerRight, y: outerBottom },
     ],
     [
-      { x: ox, y: outerBottom - framePxV },
-      { x: ox + framePxH, y: outerBottom },
+      { x: matX, y: innerBottom },
+      { x: ox, y: outerBottom },
     ],
   ];
 
@@ -316,16 +451,12 @@ function drawCornerSeams(
   ctx.restore();
 }
 
-function drawMat(
-  ctx: CanvasRenderingContext2D,
-  layout: FramedLayout,
-): void {
+function drawMat(ctx: CanvasRenderingContext2D, layout: FramedLayout): void {
   if (!layout.matEnabled) {
     return;
   }
 
   const { matX, matY, matOuterPxW, matOuterPxH, matColor } = layout;
-
   ctx.fillStyle = matColor;
   ctx.fillRect(matX, matY, matOuterPxW, matOuterPxH);
 }
@@ -406,6 +537,7 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     canvasSize,
     frameFallbackColor,
     frameTextureImage,
+    frameSampleMode,
     frameWidthCm,
     textureScale,
     matSettings,
@@ -423,15 +555,21 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     matSettings,
   );
   const scale = layout.totalPxW / 800;
-  const frameFill = createFrameFill(
-    ctx,
-    frameTextureImage,
-    frameFallbackColor,
-    textureScale,
-  );
 
-  drawMiteredFrame(ctx, layout, frameFill, frameFallbackColor, true);
-  drawMiteredFrame(ctx, layout, frameFill, frameFallbackColor, false);
+  drawFrameShadow(ctx, layout, frameFallbackColor);
+
+  if (frameSampleMode === "corner" && frameTextureImage) {
+    drawCornerSampleFrame(ctx, layout, frameTextureImage, frameFallbackColor);
+  } else {
+    const frameFill = createFrameFill(
+      ctx,
+      frameTextureImage,
+      frameFallbackColor,
+      textureScale,
+    );
+    drawTextureFrame(ctx, layout, frameFill);
+  }
+
   drawCornerSeams(ctx, layout);
   drawMat(ctx, layout);
   drawPaperShadow(ctx, layout);

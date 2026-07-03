@@ -7,7 +7,7 @@ import type { CanvasSize, CropSettings } from "../framing.types";
 import "react-easy-crop/react-easy-crop.css";
 
 interface ArtworkCropperProps {
-  artworkPreviewUrl: string | null;
+  cropSourceUrl: string | null;
   canvasSize: CanvasSize;
   cropSettings: CropSettings;
   croppedArtworkUrl: string | null;
@@ -17,7 +17,7 @@ interface ArtworkCropperProps {
 }
 
 export function ArtworkCropper({
-  artworkPreviewUrl,
+  cropSourceUrl,
   canvasSize,
   cropSettings,
   croppedArtworkUrl,
@@ -27,7 +27,7 @@ export function ArtworkCropper({
 }: ArtworkCropperProps) {
   const [isApplying, setIsApplying] = useState(false);
 
-  const aspect = useMemo(() => {
+  const artworkAspect = useMemo(() => {
     if (canvasSize.widthCm <= 0 || canvasSize.heightCm <= 0) {
       return 1;
     }
@@ -35,8 +35,12 @@ export function ArtworkCropper({
     return canvasSize.widthCm / canvasSize.heightCm;
   }, [canvasSize.widthCm, canvasSize.heightCm]);
 
-  if (!artworkPreviewUrl) {
-    return null;
+  if (!cropSourceUrl) {
+    return (
+      <p className="text-xs text-zinc-500">
+        Straighten the artwork photo first, then crop the result.
+      </p>
+    );
   }
 
   const canApply = Boolean(cropSettings.croppedAreaPixels) && !isApplying;
@@ -51,20 +55,17 @@ export function ArtworkCropper({
   };
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium text-zinc-900">Crop</h2>
-        {croppedArtworkUrl ? (
-          <span className="text-xs font-medium text-emerald-600">Applied</span>
-        ) : null}
-      </div>
+    <div className="space-y-3">
+      {croppedArtworkUrl ? (
+        <p className="text-xs font-medium text-emerald-600">Crop applied.</p>
+      ) : null}
 
       <div className="relative h-52 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900">
         <Cropper
-          image={artworkPreviewUrl}
+          image={cropSourceUrl}
           crop={cropSettings.crop}
           zoom={cropSettings.zoom}
-          aspect={aspect}
+          aspect={cropSettings.lockToArtworkRatio ? artworkAspect : undefined}
           onCropChange={(crop) => onCropSettingsChange({ crop })}
           onZoomChange={(zoom) => onCropSettingsChange({ zoom })}
           onCropComplete={(_, croppedAreaPixels) =>
@@ -88,10 +89,23 @@ export function ArtworkCropper({
         />
       </label>
 
-      <p className="text-xs text-zinc-500">
-        Aspect ratio matches canvas size ({canvasSize.widthCm} × {canvasSize.heightCm}{" "}
-        cm).
-      </p>
+      <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-600">
+        <input
+          type="checkbox"
+          checked={cropSettings.lockToArtworkRatio}
+          onChange={(event) =>
+            onCropSettingsChange({ lockToArtworkRatio: event.target.checked })
+          }
+          className="accent-zinc-900"
+        />
+        Lock to artwork ratio ({canvasSize.widthCm} × {canvasSize.heightCm} cm)
+      </label>
+
+      {!cropSettings.lockToArtworkRatio ? (
+        <p className="text-xs text-zinc-500">
+          Drag and resize the crop box freely.
+        </p>
+      ) : null}
 
       <div className="flex gap-2">
         <button
@@ -110,6 +124,6 @@ export function ArtworkCropper({
           Reset
         </button>
       </div>
-    </section>
+    </div>
   );
 }

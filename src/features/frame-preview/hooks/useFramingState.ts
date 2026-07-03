@@ -4,13 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_CROP_SETTINGS,
   DEFAULT_MAT_SETTINGS,
+  DEFAULT_PERSPECTIVE_CORNERS,
   DEFAULT_TEXTURE_SCALE,
   type CanvasSize,
   type CropSettings,
+  type FrameSampleMode,
   type MatSettings,
+  type PerspectiveCorners,
   type UseFramingStateReturn,
 } from "../framing.types";
 import { createCroppedImageUrl } from "../utils/createCroppedImage";
+import { createPerspectiveCorrectedUrl } from "../utils/perspectiveCorrect";
 
 const DEFAULT_CANVAS_SIZE: CanvasSize = {
   widthCm: 30,
@@ -25,12 +29,16 @@ function revokeObjectUrl(url: string | null) {
 
 export function useFramingState(): UseFramingStateReturn {
   const [artworkFile, setArtworkFileState] = useState<File | null>(null);
+  const [perspectiveCorners, setPerspectiveCorners] =
+    useState<PerspectiveCorners>(DEFAULT_PERSPECTIVE_CORNERS);
+  const [correctedArtworkUrl, setCorrectedArtworkUrl] = useState<string | null>(null);
   const [cropSettings, setCropSettingsState] =
     useState<CropSettings>(DEFAULT_CROP_SETTINGS);
   const [croppedArtworkUrl, setCroppedArtworkUrl] = useState<string | null>(null);
   const [canvasSize, setCanvasSizeState] = useState<CanvasSize>(DEFAULT_CANVAS_SIZE);
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>("oak");
   const [customFrameFile, setCustomFrameFileState] = useState<File | null>(null);
+  const [frameSampleMode, setFrameSampleMode] = useState<FrameSampleMode>("texture");
   const [frameWidthCm, setFrameWidthCm] = useState(3);
   const [textureScale, setTextureScale] = useState<number>(DEFAULT_TEXTURE_SCALE);
   const [matSettings, setMatSettingsState] = useState<MatSettings>(DEFAULT_MAT_SETTINGS);
@@ -45,7 +53,9 @@ export function useFramingState(): UseFramingStateReturn {
     [customFrameFile],
   );
 
-  const artworkImageUrl = croppedArtworkUrl ?? artworkPreviewUrl;
+  const cropSourceUrl = correctedArtworkUrl ?? artworkPreviewUrl;
+  const artworkImageUrl =
+    croppedArtworkUrl ?? correctedArtworkUrl ?? artworkPreviewUrl;
 
   useEffect(() => {
     return () => {
@@ -61,6 +71,12 @@ export function useFramingState(): UseFramingStateReturn {
 
   useEffect(() => {
     return () => {
+      revokeObjectUrl(correctedArtworkUrl);
+    };
+  }, [correctedArtworkUrl]);
+
+  useEffect(() => {
+    return () => {
       revokeObjectUrl(croppedArtworkUrl);
     };
   }, [croppedArtworkUrl]);
@@ -72,23 +88,64 @@ export function useFramingState(): UseFramingStateReturn {
     });
   }, []);
 
-  const setArtworkFile = useCallback((file: File | null) => {
-    setArtworkFileState(file);
+  const clearCorrectedArtwork = useCallback(() => {
+    setCorrectedArtworkUrl((previous) => {
+      revokeObjectUrl(previous);
+      return null;
+    });
+  }, []);
+
+  const resetArtworkProcessing = useCallback(() => {
+    setPerspectiveCorners(DEFAULT_PERSPECTIVE_CORNERS);
+    setCropSettingsState(DEFAULT_CROP_SETTINGS);
+    clearCorrectedArtwork();
+    clearAppliedCrop();
+  }, [clearAppliedCrop, clearCorrectedArtwork]);
+
+  const setArtworkFile = useCallback(
+    (file: File | null) => {
+      setArtworkFileState(file);
+      resetArtworkProcessing();
+    },
+    [resetArtworkProcessing],
+  );
+
+  const straightenArtwork = useCallback(async () => {
+    if (!artworkPreviewUrl) {
+      return;
+    }
+
+    const nextUrl = await createPerspectiveCorrectedUrl(
+      artworkPreviewUrl,
+      perspectiveCorners,
+    );
+
+    setCorrectedArtworkUrl((previous) => {
+      revokeObjectUrl(previous);
+      return nextUrl;
+    });
     setCropSettingsState(DEFAULT_CROP_SETTINGS);
     clearAppliedCrop();
-  }, [clearAppliedCrop]);
+  }, [artworkPreviewUrl, perspectiveCorners, clearAppliedCrop]);
+
+  const resetPerspective = useCallback(() => {
+    setPerspectiveCorners(DEFAULT_PERSPECTIVE_CORNERS);
+    clearCorrectedArtwork();
+    setCropSettingsState(DEFAULT_CROP_SETTINGS);
+    clearAppliedCrop();
+  }, [clearAppliedCrop, clearCorrectedArtwork]);
 
   const setCropSettings = useCallback((settings: Partial<CropSettings>) => {
     setCropSettingsState((previous) => ({ ...previous, ...settings }));
   }, []);
 
   const applyCrop = useCallback(async () => {
-    if (!artworkPreviewUrl || !cropSettings.croppedAreaPixels) {
+    if (!cropSourceUrl || !cropSettings.croppedAreaPixels) {
       return;
     }
 
     const nextUrl = await createCroppedImageUrl(
-      artworkPreviewUrl,
+      cropSourceUrl,
       cropSettings.croppedAreaPixels,
     );
 
@@ -96,10 +153,13 @@ export function useFramingState(): UseFramingStateReturn {
       revokeObjectUrl(previous);
       return nextUrl;
     });
-  }, [artworkPreviewUrl, cropSettings.croppedAreaPixels]);
+  }, [cropSourceUrl, cropSettings.croppedAreaPixels]);
 
   const resetCrop = useCallback(() => {
-    setCropSettingsState(DEFAULT_CROP_SETTINGS);
+    setCropSettingsState((previous) => ({
+      ...DEFAULT_CROP_SETTINGS,
+      lockToArtworkRatio: previous.lockToArtworkRatio,
+    }));
     clearAppliedCrop();
   }, [clearAppliedCrop]);
 
@@ -118,6 +178,10 @@ export function useFramingState(): UseFramingStateReturn {
     }
   }, []);
 
+  const setSelectedFrameIdWithMode = useCallback((id: string | null) => {
+    setSelectedFrameId(id);
+  }, []);
+
   const setMatSettings = useCallback((settings: Partial<MatSettings>) => {
     setMatSettingsState((previous) => ({ ...previous, ...settings }));
   }, []);
@@ -125,23 +189,30 @@ export function useFramingState(): UseFramingStateReturn {
   return {
     artworkFile,
     artworkPreviewUrl,
+    correctedArtworkUrl,
     artworkImageUrl,
+    perspectiveCorners,
     cropSettings,
     croppedArtworkUrl,
     canvasSize,
     selectedFrameId,
     customFrameTextureUrl,
     customFrameFile,
+    frameSampleMode,
     frameWidthCm,
     textureScale,
     matSettings,
     setArtworkFile,
+    setPerspectiveCorners,
+    straightenArtwork,
+    resetPerspective,
     setCropSettings,
     applyCrop,
     resetCrop,
     setCanvasSize,
-    setSelectedFrameId,
+    setSelectedFrameId: setSelectedFrameIdWithMode,
     setCustomFrameFile,
+    setFrameSampleMode,
     setFrameWidthCm,
     setTextureScale,
     setMatSettings,
