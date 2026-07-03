@@ -1,21 +1,22 @@
 "use client";
 
 import { useCallback } from "react";
+import { PREVIEW_CANVAS_ID } from "./PreviewCanvas";
 
 interface ExportPanelProps {
-  canvasSelector?: string;
+  canvasId?: string;
 }
 
-export function ExportPanel({ canvasSelector = "canvas" }: ExportPanelProps) {
+export function ExportPanel({ canvasId = PREVIEW_CANVAS_ID }: ExportPanelProps) {
   const handleExport = useCallback(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>(canvasSelector);
-    if (!canvas) return;
+    const canvas = document.getElementById(canvasId);
+    if (!(canvas instanceof HTMLCanvasElement)) return;
 
     const link = document.createElement("a");
     link.download = "framed-preview.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
-  }, [canvasSelector]);
+  }, [canvasId]);
 
   return (
     <section className="space-y-2 border-t border-zinc-200 pt-4">
@@ -27,7 +28,9 @@ export function ExportPanel({ canvasSelector = "canvas" }: ExportPanelProps) {
       >
         Download preview
       </button>
-      <p className="text-xs text-zinc-500">Exports the current canvas preview as PNG.</p>
+      <p className="text-xs text-zinc-500">
+        Exports the full-resolution framed preview as PNG.
+      </p>
     </section>
   );
 }

@@ -13,7 +13,7 @@ export interface CanvasSize {
 export interface FrameDefinition {
   id: string;
   name: string;
-  textureUrl: string;
+  textureUrl?: string;
   fallbackColor: string;
 }
 
@@ -38,3 +38,16 @@ export interface FramingActions {
 }
 
 export type UseFramingStateReturn = FramingState & FramingActions;
+
+export interface FramedLayout {
+  offsetX: number;
+  offsetY: number;
+  totalPxW: number;
+  totalPxH: number;
+  artworkPxW: number;
+  artworkPxH: number;
+  framePxH: number;
+  framePxV: number;
+  artX: number;
+  artY: number;
+}

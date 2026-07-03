@@ -61,7 +61,7 @@ export function FramingApp() {
 
         <main className="min-h-[400px] flex-1">
           <PreviewCanvas
-            artworkPreviewUrl={framing.artworkPreviewUrl}
+            artworkImageUrl={framing.artworkPreviewUrl}
             cropRect={framing.cropRect}
             canvasSize={framing.canvasSize}
             frame={selectedFrame}

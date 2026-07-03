@@ -1,20 +1,127 @@
-import type { CanvasSize, CropRect, FrameDefinition } from "../framing.types";
+import type { CanvasSize, FramedLayout } from "../framing.types";
+
+const BACKGROUND_COLOR = "#e8e8ec";
+const PLACEHOLDER_ART_COLOR = "#fafafa";
+const PLACEHOLDER_BORDER_COLOR = "#d4d4d8";
+const PLACEHOLDER_TEXT_COLOR = "#a1a1aa";
 
 export interface DrawFramedArtworkOptions {
   ctx: CanvasRenderingContext2D;
   canvasWidth: number;
   canvasHeight: number;
   artworkImage: HTMLImageElement | null;
-  cropRect: CropRect | null;
+  cropRect: { x: number; y: number; width: number; height: number } | null;
   canvasSize: CanvasSize;
-  frame: FrameDefinition | null;
-  customFrameTextureUrl: string | null;
+  frameFallbackColor: string;
+  frameTextureImage: HTMLImageElement | null;
   frameWidthCm: number;
 }
 
-function cmToPx(cm: number, totalCm: number, totalPx: number): number {
-  if (totalCm <= 0) return 0;
-  return (cm / totalCm) * totalPx;
+export function computeFramedLayout(
+  canvasWidth: number,
+  canvasHeight: number,
+  canvasSize: CanvasSize,
+  frameWidthCm: number,
+): FramedLayout {
+  const { widthCm: canvasWidthCm, heightCm: canvasHeightCm } = canvasSize;
+  const totalWidthCm = canvasWidthCm + frameWidthCm * 2;
+  const totalHeightCm = canvasHeightCm + frameWidthCm * 2;
+  const totalAspect = totalWidthCm / totalHeightCm;
+
+  const padding = Math.min(canvasWidth, canvasHeight) * 0.08;
+  const availW = Math.max(canvasWidth - padding * 2, 1);
+  const availH = Math.max(canvasHeight - padding * 2, 1);
+
+  let totalPxW: number;
+  let totalPxH: number;
+
+  if (totalAspect >= availW / availH) {
+    totalPxW = availW;
+    totalPxH = availW / totalAspect;
+  } else {
+    totalPxH = availH;
+    totalPxW = availH * totalAspect;
+  }
+
+  const artworkPxW = totalPxW * (canvasWidthCm / totalWidthCm);
+  const artworkPxH = totalPxH * (canvasHeightCm / totalHeightCm);
+  const framePxH = (artworkPxW * frameWidthCm) / canvasWidthCm;
+  const framePxV = (artworkPxH * frameWidthCm) / canvasHeightCm;
+
+  const offsetX = (canvasWidth - totalPxW) / 2;
+  const offsetY = (canvasHeight - totalPxH) / 2;
+
+  return {
+    offsetX,
+    offsetY,
+    totalPxW,
+    totalPxH,
+    artworkPxW,
+    artworkPxH,
+    framePxH,
+    framePxV,
+    artX: offsetX + framePxH,
+    artY: offsetY + framePxV,
+  };
+}
+
+function fillFrameBorder(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+  fill: string | CanvasPattern,
+): void {
+  const { offsetX, offsetY, totalPxW, totalPxH, framePxH, framePxV } = layout;
+
+  ctx.fillStyle = fill;
+
+  ctx.fillRect(offsetX, offsetY, totalPxW, framePxV);
+  ctx.fillRect(offsetX, offsetY + totalPxH - framePxV, totalPxW, framePxV);
+  ctx.fillRect(offsetX, offsetY + framePxV, framePxH, totalPxH - framePxV * 2);
+  ctx.fillRect(
+    offsetX + totalPxW - framePxH,
+    offsetY + framePxV,
+    framePxH,
+    totalPxH - framePxV * 2,
+  );
+}
+
+function drawInnerShadow(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+): void {
+  const { artX, artY, artworkPxW, artworkPxH, framePxH, framePxV } = layout;
+  const lineWidth = Math.max(1, Math.min(framePxH, framePxV) * 0.07);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.22)";
+  ctx.lineWidth = lineWidth;
+  ctx.strokeRect(
+    artX + lineWidth / 2,
+    artY + lineWidth / 2,
+    artworkPxW - lineWidth,
+    artworkPxH - lineWidth,
+  );
+  ctx.restore();
+}
+
+function drawArtworkPlaceholder(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+  scale: number,
+): void {
+  const { artX, artY, artworkPxW, artworkPxH } = layout;
+
+  ctx.fillStyle = PLACEHOLDER_ART_COLOR;
+  ctx.fillRect(artX, artY, artworkPxW, artworkPxH);
+  ctx.strokeStyle = PLACEHOLDER_BORDER_COLOR;
+  ctx.lineWidth = Math.max(1, scale);
+  ctx.strokeRect(artX, artY, artworkPxW, artworkPxH);
+
+  ctx.fillStyle = PLACEHOLDER_TEXT_COLOR;
+  ctx.font = `${Math.max(12, artworkPxW * 0.04)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Upload artwork", artX + artworkPxW / 2, artY + artworkPxH / 2);
 }
 
 export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
@@ -25,39 +132,37 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     artworkImage,
     cropRect,
     canvasSize,
-    frame,
+    frameFallbackColor,
+    frameTextureImage,
     frameWidthCm,
   } = options;
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-  ctx.fillStyle = "#e4e4e7";
+  ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  const aspect = canvasSize.widthCm / canvasSize.heightCm;
-  let artworkWidth = canvasWidth * 0.75;
-  let artworkHeight = artworkWidth / aspect;
-
-  if (artworkHeight > canvasHeight * 0.75) {
-    artworkHeight = canvasHeight * 0.75;
-    artworkWidth = artworkHeight * aspect;
-  }
-
-  const frameWidthPx = cmToPx(
+  const layout = computeFramedLayout(
+    canvasWidth,
+    canvasHeight,
+    canvasSize,
     frameWidthCm,
-    canvasSize.widthCm + frameWidthCm * 2,
-    artworkWidth + cmToPx(frameWidthCm, canvasSize.widthCm, artworkWidth) * 2,
   );
+  const scale = layout.totalPxW / 800;
 
-  const totalWidth = artworkWidth + frameWidthPx * 2;
-  const totalHeight = artworkHeight + frameWidthPx * 2;
-  const offsetX = (canvasWidth - totalWidth) / 2;
-  const offsetY = (canvasHeight - totalHeight) / 2;
+  const frameFill: string | CanvasPattern =
+    frameTextureImage !== null
+      ? (ctx.createPattern(frameTextureImage, "repeat") ?? frameFallbackColor)
+      : frameFallbackColor;
 
-  ctx.fillStyle = frame?.fallbackColor ?? "#71717a";
-  ctx.fillRect(offsetX, offsetY, totalWidth, totalHeight);
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
+  ctx.shadowBlur = layout.totalPxW * 0.028;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = layout.totalPxW * 0.014;
+  fillFrameBorder(ctx, layout, frameFill);
+  ctx.restore();
 
-  const artX = offsetX + frameWidthPx;
-  const artY = offsetY + frameWidthPx;
+  const { artX, artY, artworkPxW, artworkPxH } = layout;
 
   if (artworkImage) {
     const source = cropRect ?? {
@@ -75,20 +180,34 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
       source.height,
       artX,
       artY,
-      artworkWidth,
-      artworkHeight,
+      artworkPxW,
+      artworkPxH,
     );
   } else {
-    ctx.fillStyle = "#fafafa";
-    ctx.fillRect(artX, artY, artworkWidth, artworkHeight);
-    ctx.strokeStyle = "#d4d4d8";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(artX, artY, artworkWidth, artworkHeight);
-
-    ctx.fillStyle = "#a1a1aa";
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Upload artwork", artX + artworkWidth / 2, artY + artworkHeight / 2);
+    drawArtworkPlaceholder(ctx, layout, scale);
   }
+
+  drawInnerShadow(ctx, layout);
+}
+
+export function computeRenderDimensions(
+  canvasSize: CanvasSize,
+  frameWidthCm: number,
+  maxDimension = 2400,
+): { width: number; height: number } {
+  const totalW = canvasSize.widthCm + frameWidthCm * 2;
+  const totalH = canvasSize.heightCm + frameWidthCm * 2;
+  const aspect = totalW / totalH;
+
+  if (aspect >= 1) {
+    return {
+      width: maxDimension,
+      height: Math.round(maxDimension / aspect),
+    };
+  }
+
+  return {
+    width: Math.round(maxDimension * aspect),
+    height: maxDimension,
+  };
 }

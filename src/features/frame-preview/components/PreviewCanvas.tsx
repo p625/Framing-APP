@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CanvasSize, CropRect, FrameDefinition } from "../framing.types";
-import { drawFramedArtwork } from "../renderer/drawFramedArtwork";
+import {
+  computeRenderDimensions,
+  drawFramedArtwork,
+} from "../renderer/drawFramedArtwork";
+
+const PREVIEW_CANVAS_ID = "framing-preview-canvas";
 
 interface PreviewCanvasProps {
-  artworkPreviewUrl: string | null;
+  artworkImageUrl: string | null;
   cropRect: CropRect | null;
   canvasSize: CanvasSize;
   frame: FrameDefinition | null;
@@ -13,8 +18,42 @@ interface PreviewCanvasProps {
   frameWidthCm: number;
 }
 
+function useLoadedImage(url: string | null | undefined) {
+  const [loaded, setLoaded] = useState<{
+    url: string;
+    image: HTMLImageElement | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!url) return;
+
+    let cancelled = false;
+    const img = new Image();
+    img.decoding = "async";
+
+    img.onload = () => {
+      if (cancelled) return;
+      setLoaded({ url, image: img });
+    };
+
+    img.onerror = () => {
+      if (cancelled) return;
+      setLoaded({ url, image: null });
+    };
+
+    img.src = url;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (!url) return null;
+  return loaded?.url === url ? loaded.image : null;
+}
+
 export function PreviewCanvas({
-  artworkPreviewUrl,
+  artworkImageUrl,
   cropRect,
   canvasSize,
   frame,
@@ -22,7 +61,18 @@ export function PreviewCanvas({
   frameWidthCm,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const artworkImageRef = useRef<HTMLImageElement | null>(null);
+  const artworkImage = useLoadedImage(artworkImageUrl);
+
+  const frameTextureUrl =
+    customFrameTextureUrl ?? frame?.textureUrl ?? null;
+  const frameTextureImage = useLoadedImage(frameTextureUrl);
+
+  const renderDimensions = useMemo(
+    () => computeRenderDimensions(canvasSize, frameWidthCm),
+    [canvasSize, frameWidthCm],
+  );
+
+  const frameFallbackColor = frame?.fallbackColor ?? "#71717a";
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -35,47 +85,43 @@ export function PreviewCanvas({
       ctx,
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
-      artworkImage: artworkImageRef.current,
+      artworkImage,
       cropRect,
       canvasSize,
-      frame,
-      customFrameTextureUrl,
+      frameFallbackColor,
+      frameTextureImage,
       frameWidthCm,
     });
-  }, [cropRect, canvasSize, frame, customFrameTextureUrl, frameWidthCm]);
+  }, [
+    artworkImage,
+    cropRect,
+    canvasSize,
+    frameFallbackColor,
+    frameTextureImage,
+    frameWidthCm,
+  ]);
 
   useEffect(() => {
-    if (!artworkPreviewUrl) {
-      artworkImageRef.current = null;
-      redraw();
-      return;
-    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const img = new Image();
-    img.src = artworkPreviewUrl;
-    img.onload = () => {
-      artworkImageRef.current = img;
-      redraw();
-    };
-
-    return () => {
-      artworkImageRef.current = null;
-    };
-  }, [artworkPreviewUrl, redraw]);
-
-  useEffect(() => {
+    canvas.width = renderDimensions.width;
+    canvas.height = renderDimensions.height;
     redraw();
-  }, [cropRect, canvasSize, frame, customFrameTextureUrl, frameWidthCm, redraw]);
+  }, [renderDimensions, redraw]);
 
   return (
     <div className="flex h-full min-h-[320px] items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 p-4">
       <canvas
+        id={PREVIEW_CANVAS_ID}
         ref={canvasRef}
-        width={640}
-        height={480}
+        width={renderDimensions.width}
+        height={renderDimensions.height}
         className="max-h-full max-w-full rounded-lg bg-white shadow-sm"
         aria-label="Framed artwork preview"
       />
     </div>
   );
 }
+
+export { PREVIEW_CANVAS_ID };
