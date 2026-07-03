@@ -12,12 +12,14 @@ import type { FrameCatalogueSelection } from "../../ui/appUi.types";
 
 interface FrameCatalogueProps {
   selection: FrameCatalogueSelection | null;
+  catalogueRefreshKey?: number;
   onSelectBuiltin: (id: string) => void;
   onSelectProfile: (id: string, data: import("../../framing.types").SerializableFrameProfile) => void;
 }
 
 export function FrameCatalogue({
   selection,
+  catalogueRefreshKey = 0,
   onSelectBuiltin,
   onSelectProfile,
 }: FrameCatalogueProps) {
@@ -39,7 +41,7 @@ export function FrameCatalogue({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [catalogueRefreshKey]);
 
   useEffect(() => {
     let cancelled = false;

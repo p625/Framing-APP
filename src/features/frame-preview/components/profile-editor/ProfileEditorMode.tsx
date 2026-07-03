@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UseFramingStateReturn } from "../../framing.types";
+import { resolveProfilePreviewArtworkUrl } from "../../defaults/profilePreview";
 import {
   deleteFrameProfile,
   loadFrameProfile,
@@ -12,10 +13,15 @@ import { FrameCornerCalibrationEditor, getCalibrationOrDefault } from "../FrameC
 import { PreviewCanvas } from "../PreviewCanvas";
 import { TEXTURE_SCALE_PRESETS, type TextureScalePreset } from "../../framing.types";
 import { SAMPLE_FRAMES } from "../../sampleFrames";
+import { ProfileManagementList } from "./ProfileManagementList";
+import { ProfilePreviewViewport } from "./ProfilePreviewViewport";
 
 interface ProfileEditorModeProps {
   framing: UseFramingStateReturn;
   editingProfileId: string | null;
+  catalogueRefreshKey: number;
+  onProfileDeleted: (id: string) => void;
+  onCatalogueChanged: () => void;
 }
 
 const PRESET_LABELS: Record<TextureScalePreset, string> = {
@@ -24,28 +30,63 @@ const PRESET_LABELS: Record<TextureScalePreset, string> = {
   large: "Large",
 };
 
-export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorModeProps) {
+export function ProfileEditorMode({
+  framing,
+  editingProfileId,
+  catalogueRefreshKey,
+  onProfileDeleted,
+  onCatalogueChanged,
+}: ProfileEditorModeProps) {
   const [profileName, setProfileName] = useState("New frame profile");
   const [status, setStatus] = useState<string | null>(null);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(editingProfileId);
 
   const importFrameProfile = framing.importFrameProfile;
+
+  const loadProfileById = useCallback(
+    async (id: string) => {
+      const record = await loadFrameProfile(id);
+      if (!record) {
+        setStatus("Profile not found.");
+        return;
+      }
+      setProfileName(record.name);
+      setActiveProfileId(id);
+      importFrameProfile(record.data);
+      setStatus(`Loaded "${record.name}".`);
+    },
+    [importFrameProfile],
+  );
 
   useEffect(() => {
     if (!editingProfileId) {
       return;
     }
+
     let cancelled = false;
     void loadFrameProfile(editingProfileId).then((record) => {
-      if (cancelled || !record) {
+      if (cancelled) {
+        return;
+      }
+      if (!record) {
+        setStatus("Profile not found.");
         return;
       }
       setProfileName(record.name);
+      setActiveProfileId(editingProfileId);
       importFrameProfile(record.data);
+      setStatus(`Loaded "${record.name}".`);
     });
+
     return () => {
       cancelled = true;
     };
   }, [editingProfileId, importFrameProfile]);
+
+  const previewArtwork = useMemo(
+    () => resolveProfilePreviewArtworkUrl(framing.artworkImageUrl),
+    [framing.artworkImageUrl],
+  );
 
   const activePreset = (
     Object.entries(TEXTURE_SCALE_PRESETS) as [TextureScalePreset, number][]
@@ -58,29 +99,49 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
       return;
     }
     const id = await saveFrameProfile(profileName, data);
+    setActiveProfileId(id);
+    onCatalogueChanged();
     setStatus(`Saved profile "${profileName.trim()}".`);
     return id;
-  }, [framing, profileName]);
+  }, [framing, onCatalogueChanged, profileName]);
 
   const handleRename = async () => {
-    if (!editingProfileId) {
+    if (!activeProfileId) {
       await handleSave();
       return;
     }
-    await renameFrameProfile(editingProfileId, profileName);
+    await renameFrameProfile(activeProfileId, profileName);
+    onCatalogueChanged();
     setStatus("Profile renamed.");
   };
 
-  const handleDelete = async () => {
-    if (!editingProfileId) {
+  const handleDeleteActive = async () => {
+    if (!activeProfileId) {
+      setStatus("Save the profile first, or select one from the list.");
       return;
     }
-    if (!window.confirm(`Delete profile "${profileName}"?`)) {
+    if (!window.confirm(`Delete profile "${profileName}"? This cannot be undone.`)) {
       return;
     }
-    await deleteFrameProfile(editingProfileId);
+
+    const deletedName = profileName;
+    const deletedId = activeProfileId;
+    await deleteFrameProfile(deletedId);
+    onCatalogueChanged();
+    onProfileDeleted(deletedId);
+    setActiveProfileId(null);
+    setProfileName("New frame profile");
     framing.setCustomFrameFile(null);
-    setStatus("Profile deleted.");
+    setStatus(`Deleted "${deletedName}".`);
+  };
+
+  const handleProfileDeletedFromList = (id: string) => {
+    if (activeProfileId === id) {
+      setActiveProfileId(null);
+      setProfileName("New frame profile");
+      framing.setCustomFrameFile(null);
+    }
+    onProfileDeleted(id);
   };
 
   const frameSampleMode = framing.frameSampleMode;
@@ -91,7 +152,7 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
       <aside className="fs-sidebar w-72 shrink-0 overflow-y-auto p-4">
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-700" htmlFor="profile-name">
+            <label className="mb-1 block fs-caption font-medium" htmlFor="profile-name">
               Profile name
             </label>
             <input
@@ -103,17 +164,17 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
           </div>
 
           <div className="space-y-2">
-            <span className="text-xs font-medium text-zinc-700">Sample type</span>
+            <span className="fs-subheading text-xs">Sample type</span>
             <div className="grid grid-cols-2 gap-2">
               {(["texture", "corner"] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => framing.setFrameSampleMode(mode)}
-                  className={`rounded-lg border px-2 py-2 text-xs ${
+                  className={`fs-btn px-2 py-2 ${
                     frameSampleMode === mode
-                      ? "border-zinc-900 bg-zinc-50 font-medium"
-                      : "border-zinc-200 text-zinc-600"
+                      ? "border-fs-primary bg-fs-gold-muted font-medium"
+                      : "fs-btn-secondary"
                   }`}
                 >
                   {mode === "texture" ? "Texture" : "Corner"}
@@ -122,8 +183,8 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
             </div>
           </div>
 
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-center hover:border-zinc-400">
-            <span className="text-xs font-medium text-zinc-700">Upload frame sample</span>
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--fs-radius-lg)] border border-dashed border-fs-border-strong bg-fs-bg-elevated px-4 py-6 text-center hover:border-fs-gold">
+            <span className="text-xs font-medium text-fs-primary">Upload frame sample</span>
             <input
               type="file"
               accept="image/*"
@@ -136,17 +197,17 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
 
           {frameSampleMode === "texture" ? (
             <div className="space-y-2">
-              <span className="text-xs font-medium text-zinc-700">Texture scale</span>
+              <span className="fs-subheading text-xs">Texture scale</span>
               <div className="grid grid-cols-3 gap-1">
                 {(Object.keys(TEXTURE_SCALE_PRESETS) as TextureScalePreset[]).map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => framing.setTextureScale(TEXTURE_SCALE_PRESETS[preset])}
-                    className={`rounded-md border px-2 py-1 text-[10px] ${
+                    className={`fs-btn px-2 py-1 text-[10px] ${
                       activePreset === preset
-                        ? "border-zinc-900 bg-zinc-50 font-medium"
-                        : "border-zinc-200"
+                        ? "border-fs-primary bg-fs-gold-muted font-medium"
+                        : "fs-btn-secondary"
                     }`}
                   >
                     {PRESET_LABELS[preset]}
@@ -161,7 +222,7 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
             onChange={framing.setFrameWidthCm}
           />
 
-          <div className="flex flex-col gap-2 border-t border-zinc-100 pt-4">
+          <div className="flex flex-col gap-2 border-t border-fs-border pt-4">
             <button
               type="button"
               onClick={() => void handleSave()}
@@ -169,28 +230,34 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
             >
               Save profile
             </button>
-            {editingProfileId ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleRename()}
-                  className="fs-btn fs-btn-secondary w-full py-2"
-                >
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete()}
-                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                >
-                  Delete profile
-                </button>
-              </>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => void handleRename()}
+              className="fs-btn fs-btn-secondary w-full py-2"
+              disabled={!activeProfileId && !framing.customFrameFile}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDeleteActive()}
+              className="fs-btn fs-btn-danger w-full py-2"
+              disabled={!activeProfileId}
+            >
+              Delete profile
+            </button>
           </div>
 
-          {status ? <p className="text-xs text-zinc-500">{status}</p> : null}
-          <p className="text-[11px] text-zinc-400">Saved locally in this browser.</p>
+          <ProfileManagementList
+            activeProfileId={activeProfileId}
+            refreshKey={catalogueRefreshKey}
+            onSelectProfile={(id) => void loadProfileById(id)}
+            onProfileDeleted={handleProfileDeletedFromList}
+            onCatalogueChanged={onCatalogueChanged}
+          />
+
+          {status ? <p className="fs-caption">{status}</p> : null}
+          <p className="text-[11px] text-fs-muted-light">Saved locally in this browser.</p>
         </div>
       </aside>
 
@@ -216,29 +283,37 @@ export function ProfileEditorMode({ framing, editingProfileId }: ProfileEditorMo
                   className="max-h-full w-full rounded-lg object-contain"
                 />
               ) : (
-                <p className="text-xs text-zinc-400">Upload a sample to begin calibration.</p>
+                <p className="fs-caption">Upload a sample to begin calibration.</p>
               )}
             </div>
           </div>
 
           <div className="fs-panel flex min-h-0 flex-col overflow-hidden">
-            <div className="border-b border-fs-border px-4 py-2 text-xs font-medium text-fs-primary">
-              Preview
+            <div className="flex items-center justify-between border-b border-fs-border px-4 py-2">
+              <span className="text-xs font-medium text-fs-primary">Preview</span>
+              {previewArtwork.isDefault ? (
+                <span className="text-[10px] text-fs-muted">Default preview artwork</span>
+              ) : (
+                <span className="text-[10px] text-fs-gold">Workspace artwork</span>
+              )}
             </div>
             <div className="min-h-0 flex-1">
-              <PreviewCanvas
-                artworkImageUrl={framing.artworkImageUrl}
-                canvasSize={framing.canvasSize}
-                frame={placeholderFrame}
-                customFrameTextureUrl={framing.customFrameTextureUrl}
-                customFrameFallbackColor={framing.customFrameFallbackColor}
-                frameSampleMode={frameSampleMode}
-                frameCornerCalibration={framing.frameCornerCalibration}
-                frameWidthCm={framing.frameWidthCm}
-                textureScale={framing.textureScale}
-                matSettings={framing.matSettings}
-                fillContainer
-              />
+              <ProfilePreviewViewport>
+                <PreviewCanvas
+                  artworkImageUrl={previewArtwork.url}
+                  canvasSize={framing.canvasSize}
+                  frame={placeholderFrame}
+                  customFrameTextureUrl={framing.customFrameTextureUrl}
+                  customFrameFallbackColor={framing.customFrameFallbackColor}
+                  frameSampleMode={frameSampleMode}
+                  frameCornerCalibration={framing.frameCornerCalibration}
+                  frameWidthCm={framing.frameWidthCm}
+                  textureScale={framing.textureScale}
+                  matSettings={framing.matSettings}
+                  fillContainer
+                  embedded
+                />
+              </ProfilePreviewViewport>
             </div>
           </div>
         </div>
@@ -256,7 +331,7 @@ function FrameWidthInputCompact({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-zinc-700" htmlFor="profile-frame-width">
+      <label className="mb-1 block fs-caption font-medium" htmlFor="profile-frame-width">
         Default frame width (cm)
       </label>
       <input

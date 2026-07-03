@@ -23,6 +23,7 @@ interface WorkspaceSidebarProps {
   onOpenPerspective: () => void;
   onOpenCrop: () => void;
   onCreateProfile: () => void;
+  catalogueRefreshKey: number;
 }
 
 export function WorkspaceSidebar({
@@ -35,6 +36,7 @@ export function WorkspaceSidebar({
   onOpenPerspective,
   onOpenCrop,
   onCreateProfile,
+  catalogueRefreshKey,
 }: WorkspaceSidebarProps) {
   const hasArtwork = Boolean(framing.artworkFile);
   const canCrop = Boolean(framing.correctedArtworkUrl ?? framing.artworkPreviewUrl);
@@ -109,6 +111,7 @@ export function WorkspaceSidebar({
       >
         <FrameCatalogue
           selection={frameSelection}
+          catalogueRefreshKey={catalogueRefreshKey}
           onSelectBuiltin={onSelectBuiltinFrame}
           onSelectProfile={(_id, data) => {
             onSelectProfileFrame(_id);

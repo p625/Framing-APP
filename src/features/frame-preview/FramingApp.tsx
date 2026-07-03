@@ -62,6 +62,15 @@ export function FramingApp() {
     ui.enterProfileEditor(null);
   }, [ui]);
 
+  const handleProfileDeleted = useCallback(
+    (id: string) => {
+      if (ui.frameSelection?.kind === "profile" && ui.frameSelection.id === id) {
+        handleSelectBuiltinFrame("oak");
+      }
+    },
+    [handleSelectBuiltinFrame, ui.frameSelection],
+  );
+
   if (ui.appMode === "profile-editor") {
     return (
       <div className="flex h-screen flex-col bg-fs-bg">
@@ -71,7 +80,14 @@ export function FramingApp() {
           onExitProfileEditor={ui.exitProfileEditor}
           onCreateProfile={handleCreateProfile}
         />
-        <ProfileEditorMode framing={framing} editingProfileId={ui.editingProfileId} />
+        <ProfileEditorMode
+          key={ui.editingProfileId ?? "new-profile"}
+          framing={framing}
+          editingProfileId={ui.editingProfileId}
+          catalogueRefreshKey={ui.profileCatalogueRevision}
+          onProfileDeleted={handleProfileDeleted}
+          onCatalogueChanged={ui.notifyProfileCatalogueChanged}
+        />
       </div>
     );
   }
@@ -97,6 +113,7 @@ export function FramingApp() {
             onOpenPerspective={() => ui.openCenterView("perspective")}
             onOpenCrop={() => ui.openCenterView("crop")}
             onCreateProfile={handleCreateProfile}
+            catalogueRefreshKey={ui.profileCatalogueRevision}
           />
         </aside>
 

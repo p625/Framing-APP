@@ -16,6 +16,11 @@ export function useAppUiState() {
     { kind: "builtin", id: "oak" },
   );
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [profileCatalogueRevision, setProfileCatalogueRevision] = useState(0);
+
+  const notifyProfileCatalogueChanged = useCallback(() => {
+    setProfileCatalogueRevision((revision) => revision + 1);
+  }, []);
 
   const openSectionToggle = useCallback((section: SidebarSectionId) => {
     setOpenSection((current) => (current === section ? current : section));
@@ -47,11 +52,14 @@ export function useAppUiState() {
     openSection,
     frameSelection,
     editingProfileId,
+    profileCatalogueRevision,
     openSectionToggle,
     setFrameSelection,
+    setEditingProfileId,
     enterProfileEditor,
     exitProfileEditor,
     openCenterView,
     returnToPreview,
+    notifyProfileCatalogueChanged,
   };
 }

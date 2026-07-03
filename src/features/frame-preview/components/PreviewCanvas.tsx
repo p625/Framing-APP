@@ -27,6 +27,7 @@ interface PreviewCanvasProps {
   textureScale: number;
   matSettings: MatSettings;
   fillContainer?: boolean;
+  embedded?: boolean;
 }
 
 function useLoadedImage(url: string | null | undefined) {
@@ -75,6 +76,7 @@ export function PreviewCanvas({
   textureScale,
   matSettings,
   fillContainer = false,
+  embedded = false,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const artworkImage = useLoadedImage(artworkImageUrl);
@@ -137,14 +139,20 @@ export function PreviewCanvas({
   return (
     <div
       className={
-        fillContainer
-          ? "flex h-full min-h-0 items-center justify-center fs-canvas-bg p-6"
-          : "flex h-full min-h-[400px] flex-col"
+        embedded
+          ? "flex items-center justify-center p-2"
+          : fillContainer
+            ? "flex h-full min-h-0 items-center justify-center fs-canvas-bg p-6"
+            : "flex h-full min-h-[400px] flex-col"
       }
     >
       <div
         className={`flex items-center justify-center ${
-          fillContainer ? "h-full w-full" : "flex-1 rounded-xl border border-zinc-200 bg-zinc-100 p-4"
+          embedded
+            ? ""
+            : fillContainer
+              ? "h-full w-full"
+              : "flex-1 rounded-xl border border-fs-border bg-fs-bg-elevated p-4"
         }`}
       >
         {artworkImageUrl ? (
