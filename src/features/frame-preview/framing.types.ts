@@ -66,6 +66,7 @@ export interface FramingState {
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
+  customFrameFallbackColor: string | null;
 }
 
 export interface FramingActions {
@@ -86,6 +87,10 @@ export interface FramingActions {
   setFrameWidthCm: (width: number) => void;
   setTextureScale: (scale: number) => void;
   setMatSettings: (settings: Partial<MatSettings>) => void;
+  exportSerializableProject: () => Promise<SerializableProject>;
+  importSerializableProject: (project: SerializableProject) => void;
+  exportFrameProfile: () => Promise<SerializableFrameProfile | null>;
+  importFrameProfile: (profile: SerializableFrameProfile) => void;
 }
 
 export type UseFramingStateReturn = FramingState & FramingActions;
@@ -182,3 +187,54 @@ export const MAT_COLOR_PRESETS = [
   { label: "Black", value: "#1a1a1a" },
   { label: "Cream", value: "#efe6d4" },
 ] as const;
+
+export const DEFAULT_CUSTOM_FRAME_FALLBACK_COLOR = "#71717a";
+
+export const SERIALIZABLE_PROJECT_VERSION = 1 as const;
+export const SERIALIZABLE_FRAME_PROFILE_VERSION = 1 as const;
+
+export interface StoredImagePayload {
+  blob: Blob;
+  name: string;
+  type: string;
+}
+
+export interface SerializableProject {
+  version: typeof SERIALIZABLE_PROJECT_VERSION;
+  perspectiveCorners: PerspectiveCorners;
+  cropSettings: CropSettings;
+  canvasSize: CanvasSize;
+  selectedFrameId: string | null;
+  frameSampleMode: FrameSampleMode;
+  frameCornerCalibration: FrameCornerCalibration | null;
+  frameWidthCm: number;
+  textureScale: number;
+  matSettings: MatSettings;
+  customFrameFallbackColor: string | null;
+  artworkOriginal: StoredImagePayload | null;
+  correctedArtwork: Blob | null;
+  croppedArtwork: Blob | null;
+  customFrame: StoredImagePayload | null;
+}
+
+export interface SerializableFrameProfile {
+  version: typeof SERIALIZABLE_FRAME_PROFILE_VERSION;
+  frameSampleMode: FrameSampleMode;
+  frameCornerCalibration: FrameCornerCalibration;
+  frameWidthCm: number;
+  textureScale: number;
+  fallbackColor: string;
+  frameImage: StoredImagePayload;
+}
+
+export interface SavedProjectSummary {
+  id: string;
+  name: string;
+  savedAt: number;
+}
+
+export interface SavedFrameProfileSummary {
+  id: string;
+  name: string;
+  savedAt: number;
+}

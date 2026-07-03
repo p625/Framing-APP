@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FrameCornerCalibration, NormalizedRect } from "../framing.types";
-import { DEFAULT_FRAME_CORNER_CALIBRATION } from "../framing.types";
 import {
   clamp01,
   computeObjectContainLayout,
@@ -13,6 +12,7 @@ import {
 import {
   CORNER_QUADRANT_LABELS,
   detectSourceCorner,
+  getCalibrationOrDefault,
   isHorizontalStripValid,
   isVerticalStripValid,
   RAIL_SOURCE_MODE_LABELS,
@@ -743,17 +743,4 @@ export function FrameCornerCalibrationEditor({
   );
 }
 
-export function getCalibrationOrDefault(
-  calibration: FrameCornerCalibration | null,
-): FrameCornerCalibration {
-  if (!calibration) {
-    return DEFAULT_FRAME_CORNER_CALIBRATION;
-  }
-
-  return {
-    ...calibration,
-    sourceCorner: calibration.sourceCorner ?? "auto",
-    railSourceMode: calibration.railSourceMode ?? "separate",
-    railSourceSide: calibration.railSourceSide ?? "top",
-  };
-}
+export { getCalibrationOrDefault };

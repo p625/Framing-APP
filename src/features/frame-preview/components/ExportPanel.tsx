@@ -19,8 +19,7 @@ export function ExportPanel({ canvasId = PREVIEW_CANVAS_ID }: ExportPanelProps) 
   }, [canvasId]);
 
   return (
-    <section className="space-y-2 border-t border-zinc-200 pt-4">
-      <h2 className="text-sm font-medium text-zinc-900">Export</h2>
+    <div className="space-y-2">
       <button
         type="button"
         onClick={handleExport}
@@ -31,6 +30,6 @@ export function ExportPanel({ canvasId = PREVIEW_CANVAS_ID }: ExportPanelProps) 
       <p className="text-xs text-zinc-500">
         Exports the full-resolution framed preview as PNG.
       </p>
-    </section>
+    </div>
   );
 }

@@ -34,6 +34,8 @@ interface FreeCropEditorProps {
   lockToArtworkRatio: boolean;
   lockedAspect: number;
   onCropAreaChange: (area: CropRect) => void;
+  displayMode?: "compact" | "workspace";
+  workspaceActions?: React.ReactNode;
 }
 
 function createFullCrop(width: number, height: number): CropRect {
@@ -74,6 +76,8 @@ export function FreeCropEditor({
   lockToArtworkRatio,
   lockedAspect,
   onCropAreaChange,
+  displayMode = "compact",
+  workspaceActions,
 }: FreeCropEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onCropAreaChangeRef = useRef(onCropAreaChange);
@@ -495,11 +499,82 @@ export function FreeCropEditor({
       },
     ];
 
+  const isWorkspace = displayMode === "workspace";
+
+  const zoomControls = (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => handleZoomChange(zoom - EDITOR_ZOOM_STEP)}
+        disabled={zoom <= EDITOR_MIN_ZOOM}
+        className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
+      >
+        −
+      </button>
+      <input
+        type="range"
+        min={EDITOR_MIN_ZOOM}
+        max={EDITOR_MAX_ZOOM}
+        step={0.05}
+        value={zoom}
+        onChange={(event) => handleZoomChange(Number(event.target.value))}
+        className="w-full accent-zinc-900"
+        aria-label="Crop zoom"
+      />
+      <button
+        type="button"
+        onClick={() => handleZoomChange(zoom + EDITOR_ZOOM_STEP)}
+        disabled={zoom >= EDITOR_MAX_ZOOM}
+        className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
+      >
+        +
+      </button>
+      <button
+        type="button"
+        onClick={resetView}
+        className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300"
+      >
+        Fit
+      </button>
+    </div>
+  );
+
   return (
-    <div className="space-y-3">
+    <div className={isWorkspace ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
+      {isWorkspace ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => handleZoomChange(zoom - EDITOR_ZOOM_STEP)}
+            disabled={zoom <= EDITOR_MIN_ZOOM}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Zoom −
+          </button>
+          <button
+            type="button"
+            onClick={() => handleZoomChange(zoom + EDITOR_ZOOM_STEP)}
+            disabled={zoom >= EDITOR_MAX_ZOOM}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Zoom +
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Fit
+          </button>
+          {workspaceActions ? <div className="ml-auto flex gap-2">{workspaceActions}</div> : null}
+        </div>
+      ) : null}
+
       <div
         ref={containerRef}
-        className="relative h-56 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900"
+        className={`relative overflow-hidden rounded-xl border border-zinc-200 bg-zinc-900 ${
+          isWorkspace ? "min-h-0 flex-1" : "h-56"
+        }`}
         style={{ overscrollBehavior: "contain" }}
         onPointerDown={(event) => {
           if (event.button !== 0 || dragMode) return;
@@ -560,41 +635,7 @@ export function FreeCropEditor({
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => handleZoomChange(zoom - EDITOR_ZOOM_STEP)}
-          disabled={zoom <= EDITOR_MIN_ZOOM}
-          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
-        >
-          −
-        </button>
-        <input
-          type="range"
-          min={EDITOR_MIN_ZOOM}
-          max={EDITOR_MAX_ZOOM}
-          step={0.05}
-          value={zoom}
-          onChange={(event) => handleZoomChange(Number(event.target.value))}
-          className="w-full accent-zinc-900"
-          aria-label="Crop zoom"
-        />
-        <button
-          type="button"
-          onClick={() => handleZoomChange(zoom + EDITOR_ZOOM_STEP)}
-          disabled={zoom >= EDITOR_MAX_ZOOM}
-          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={resetView}
-          className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300"
-        >
-          Reset zoom
-        </button>
-      </div>
+      {!isWorkspace ? zoomControls : null}
     </div>
   );
 }

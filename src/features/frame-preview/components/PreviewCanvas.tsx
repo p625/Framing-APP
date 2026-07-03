@@ -12,8 +12,6 @@ import {
   computeRenderDimensions,
   drawFramedArtwork,
 } from "../renderer/drawFramedArtwork";
-import { computePreviewDimensionsSummary } from "../utils/previewDimensions";
-import { PreviewSizeSummary } from "./PreviewSizeSummary";
 
 const PREVIEW_CANVAS_ID = "framing-preview-canvas";
 
@@ -22,11 +20,13 @@ interface PreviewCanvasProps {
   canvasSize: CanvasSize;
   frame: FrameDefinition | null;
   customFrameTextureUrl: string | null;
+  customFrameFallbackColor: string | null;
   frameSampleMode: FrameSampleMode;
   frameCornerCalibration: FrameCornerCalibration | null;
   frameWidthCm: number;
   textureScale: number;
   matSettings: MatSettings;
+  fillContainer?: boolean;
 }
 
 function useLoadedImage(url: string | null | undefined) {
@@ -68,11 +68,13 @@ export function PreviewCanvas({
   canvasSize,
   frame,
   customFrameTextureUrl,
+  customFrameFallbackColor,
   frameSampleMode,
   frameCornerCalibration,
   frameWidthCm,
   textureScale,
   matSettings,
+  fillContainer = false,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const artworkImage = useLoadedImage(artworkImageUrl);
@@ -86,12 +88,8 @@ export function PreviewCanvas({
     [canvasSize, frameWidthCm, matSettings],
   );
 
-  const sizeSummary = useMemo(
-    () => computePreviewDimensionsSummary(canvasSize, frameWidthCm, matSettings),
-    [canvasSize, frameWidthCm, matSettings],
-  );
-
-  const frameFallbackColor = frame?.fallbackColor ?? "#71717a";
+  const frameFallbackColor =
+    customFrameFallbackColor ?? frame?.fallbackColor ?? "#71717a";
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -137,29 +135,41 @@ export function PreviewCanvas({
   }, [renderDimensions, redraw]);
 
   return (
-    <div className="flex h-full min-h-[400px] flex-col gap-3">
-      <div className="flex flex-1 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 p-4">
+    <div
+      className={
+        fillContainer
+          ? "flex h-full min-h-0 items-center justify-center bg-zinc-100 p-6"
+          : "flex h-full min-h-[400px] flex-col"
+      }
+    >
+      <div
+        className={`flex items-center justify-center ${
+          fillContainer ? "h-full w-full" : "flex-1 rounded-xl border border-zinc-200 bg-zinc-100 p-4"
+        }`}
+      >
         {artworkImageUrl ? (
           <canvas
             id={PREVIEW_CANVAS_ID}
             ref={canvasRef}
             width={renderDimensions.width}
             height={renderDimensions.height}
-            className="block max-h-[min(70vh,640px)] max-w-full rounded-lg bg-white shadow-sm"
+            className={`block rounded-xl bg-white shadow-lg ${
+              fillContainer
+                ? "max-h-full max-w-full"
+                : "max-h-[min(70vh,640px)] max-w-full shadow-sm"
+            }`}
             aria-label="Framed artwork preview"
           />
         ) : (
-          <div className="max-w-sm rounded-lg border border-dashed border-zinc-300 bg-white px-6 py-10 text-center">
-            <p className="text-sm font-medium text-zinc-700">Preview will appear here</p>
-            <p className="mt-2 text-xs text-zinc-500">
-              Upload artwork, straighten and crop it, then adjust frame and mat settings
-              to see a proportional framed preview.
+          <div className="max-w-md rounded-2xl border border-dashed border-zinc-300 bg-white px-8 py-12 text-center shadow-sm">
+            <p className="text-sm font-medium text-zinc-700">Your framed preview</p>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+              Choose artwork and a frame from the sidebar. Adjust size and passe-partout to
+              see a live preview here.
             </p>
           </div>
         )}
       </div>
-
-      <PreviewSizeSummary summary={sizeSummary} />
     </div>
   );
 }

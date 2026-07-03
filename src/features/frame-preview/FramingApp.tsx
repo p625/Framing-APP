@@ -1,163 +1,116 @@
 "use client";
 
-import { ArtworkCropper } from "./components/ArtworkCropper";
-import { ArtworkUploader } from "./components/ArtworkUploader";
-import { ExportPanel } from "./components/ExportPanel";
-import { FramingWarnings } from "./components/FramingWarnings";
-import { FrameSelector } from "./components/FrameSelector";
-import { FrameUploader } from "./components/FrameUploader";
-import { FrameWidthInput } from "./components/FrameWidthInput";
-import { MatControls } from "./components/MatControls";
-import { PerspectiveEditor } from "./components/PerspectiveEditor";
-import { PreviewCanvas } from "./components/PreviewCanvas";
-import { ResetAllButton } from "./components/ResetAllButton";
-import { SizeInputs } from "./components/SizeInputs";
-import { WorkflowSection } from "./components/WorkflowSection";
+import { useCallback, useMemo } from "react";
+import { AppHeader } from "./components/layout/AppHeader";
+import { BottomInfoBar } from "./components/layout/BottomInfoBar";
+import { ProfileEditorMode } from "./components/profile-editor/ProfileEditorMode";
+import { CenterWorkspace } from "./components/workspace/CenterWorkspace";
+import { WorkspaceSidebar } from "./components/workspace/WorkspaceSidebar";
+import { useAppUiState } from "./hooks/useAppUiState";
 import { useFramingState } from "./hooks/useFramingState";
 import { SAMPLE_FRAMES } from "./sampleFrames";
-import { isFrameCornerCalibrationComplete } from "./utils/frameCalibration";
+import { computePreviewDimensionsSummary } from "./utils/previewDimensions";
 
 export function FramingApp() {
   const framing = useFramingState();
+  const ui = useAppUiState();
 
   const selectedFrame =
     SAMPLE_FRAMES.find((frame) => frame.id === framing.selectedFrameId) ?? null;
-
-  const cropSourceUrl =
-    framing.correctedArtworkUrl ?? framing.artworkPreviewUrl;
 
   const frameSampleMode = framing.customFrameFile
     ? framing.frameSampleMode
     : (selectedFrame?.sampleMode ?? framing.frameSampleMode);
 
-  const showNotStraightened = Boolean(
-    framing.artworkFile && !framing.correctedArtworkUrl,
+  const sizeSummary = useMemo(
+    () =>
+      computePreviewDimensionsSummary(
+        framing.canvasSize,
+        framing.frameWidthCm,
+        framing.matSettings,
+      ),
+    [framing.canvasSize, framing.frameWidthCm, framing.matSettings],
   );
-  const showMissingCalibration = Boolean(
-    framing.customFrameFile &&
-      frameSampleMode === "corner" &&
-      !isFrameCornerCalibrationComplete(framing.frameCornerCalibration),
+
+  const handleSelectBuiltinFrame = useCallback(
+    (id: string) => {
+      framing.setSelectedFrameId(id);
+      framing.setCustomFrameFile(null);
+      ui.setFrameSelection({ kind: "builtin", id });
+      const frame = SAMPLE_FRAMES.find((item) => item.id === id);
+      if (frame?.sampleMode) {
+        framing.setFrameSampleMode(frame.sampleMode);
+      }
+    },
+    [framing, ui],
   );
+
+  const handleSelectProfileFrame = useCallback(
+    (id: string) => {
+      ui.setFrameSelection({ kind: "profile", id });
+    },
+    [ui],
+  );
+
+  const handleCreateProfile = useCallback(() => {
+    framing.setCustomFrameFile(null);
+    framing.setFrameSampleMode("corner");
+    ui.enterProfileEditor(null);
+  }, [framing, ui]);
+
+  const handleOpenSettings = useCallback(() => {
+    ui.enterProfileEditor(null);
+  }, [ui]);
+
+  if (ui.appMode === "profile-editor") {
+    return (
+      <div className="flex h-screen flex-col bg-zinc-50">
+        <AppHeader
+          mode="profile-editor"
+          onOpenSettings={handleOpenSettings}
+          onExitProfileEditor={ui.exitProfileEditor}
+          onCreateProfile={handleCreateProfile}
+        />
+        <ProfileEditorMode framing={framing} editingProfileId={ui.editingProfileId} />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-zinc-900">Frame Preview</h1>
-        <p className="text-sm text-zinc-500">
-          Straighten and crop the artwork first, then choose a frame sample and calibrate
-          its corner before setting final sizes.
-        </p>
-      </header>
+    <div className="flex h-screen flex-col bg-zinc-100">
+      <AppHeader
+        mode="workspace"
+        onOpenSettings={handleOpenSettings}
+        onExitProfileEditor={ui.exitProfileEditor}
+        onCreateProfile={handleCreateProfile}
+      />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 lg:flex-row lg:p-6">
-        <aside className="w-full shrink-0 space-y-1 rounded-xl border border-zinc-200 bg-white p-5 lg:w-80 xl:w-96">
-          <FramingWarnings
-            showNotStraightened={showNotStraightened}
-            showMissingCalibration={showMissingCalibration}
+      <div className="flex min-h-0 flex-1">
+        <aside className="w-72 shrink-0 border-r border-zinc-200 bg-white shadow-sm xl:w-80">
+          <WorkspaceSidebar
+            framing={framing}
+            openSection={ui.openSection}
+            onToggleSection={ui.openSectionToggle}
+            frameSelection={ui.frameSelection}
+            onSelectBuiltinFrame={handleSelectBuiltinFrame}
+            onSelectProfileFrame={handleSelectProfileFrame}
+            onOpenPerspective={() => ui.openCenterView("perspective")}
+            onOpenCrop={() => ui.openCenterView("crop")}
+            onCreateProfile={handleCreateProfile}
           />
-
-          <WorkflowSection step={1} title="Upload artwork photo">
-            <ArtworkUploader
-              artworkFile={framing.artworkFile}
-              onArtworkSelect={framing.setArtworkFile}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={2} title="Mark corners & straighten">
-            <PerspectiveEditor
-              artworkPreviewUrl={framing.artworkPreviewUrl}
-              perspectiveCorners={framing.perspectiveCorners}
-              correctedArtworkUrl={framing.correctedArtworkUrl}
-              onCornersChange={framing.setPerspectiveCorners}
-              onStraighten={framing.straightenArtwork}
-              onReset={framing.resetPerspective}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={3} title="Crop image">
-            <ArtworkCropper
-              cropSourceUrl={cropSourceUrl}
-              cropEditorKey={framing.cropEditorKey}
-              canvasSize={framing.canvasSize}
-              cropSettings={framing.cropSettings}
-              croppedArtworkUrl={framing.croppedArtworkUrl}
-              onCropSettingsChange={framing.setCropSettings}
-              onApplyCrop={framing.applyCrop}
-              onResetCrop={framing.resetCrop}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={4} title="Select frame sample">
-            <FrameSelector
-              selectedFrameId={framing.selectedFrameId}
-              onFrameSelect={(id) => {
-                framing.setSelectedFrameId(id);
-                framing.setCustomFrameFile(null);
-                const frame = SAMPLE_FRAMES.find((item) => item.id === id);
-                if (frame?.sampleMode) {
-                  framing.setFrameSampleMode(frame.sampleMode);
-                }
-              }}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={5} title="Upload frame & calibrate corner">
-            <FrameUploader
-              customFrameFile={framing.customFrameFile}
-              customFrameTextureUrl={framing.customFrameTextureUrl}
-              frameSampleMode={framing.frameSampleMode}
-              frameCornerCalibration={framing.frameCornerCalibration}
-              textureScale={framing.textureScale}
-              onCustomFrameSelect={framing.setCustomFrameFile}
-              onFrameSampleModeChange={framing.setFrameSampleMode}
-              onFrameCornerCalibrationChange={framing.setFrameCornerCalibration}
-              onResetFrameCornerCalibration={framing.resetFrameCornerCalibration}
-              onTextureScaleChange={framing.setTextureScale}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={6} title="Set frame width">
-            <FrameWidthInput
-              frameWidthCm={framing.frameWidthCm}
-              onFrameWidthChange={framing.setFrameWidthCm}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={7} title="Final artwork size">
-            <SizeInputs
-              canvasSize={framing.canvasSize}
-              onCanvasSizeChange={framing.setCanvasSize}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={8} title="Optional passe-partout">
-            <MatControls
-              matSettings={framing.matSettings}
-              onMatSettingsChange={framing.setMatSettings}
-            />
-          </WorkflowSection>
-
-          <WorkflowSection step={9} title="Download preview">
-            <ExportPanel />
-          </WorkflowSection>
-
-          <div className="pt-2">
-            <ResetAllButton onResetAll={framing.resetAll} />
-          </div>
         </aside>
 
-        <main className="min-h-[400px] flex-1">
-          <PreviewCanvas
-            artworkImageUrl={framing.artworkImageUrl}
-            canvasSize={framing.canvasSize}
-            frame={selectedFrame}
-            customFrameTextureUrl={framing.customFrameTextureUrl}
-            frameSampleMode={frameSampleMode}
-            frameCornerCalibration={framing.frameCornerCalibration}
-            frameWidthCm={framing.frameWidthCm}
-            textureScale={framing.textureScale}
-            matSettings={framing.matSettings}
-          />
+        <main className="flex min-w-0 flex-[4] flex-col">
+          <div className="min-h-0 flex-1">
+            <CenterWorkspace
+              framing={framing}
+              centerView={ui.centerView}
+              onReturnToPreview={ui.returnToPreview}
+              selectedFrame={selectedFrame}
+              frameSampleMode={frameSampleMode}
+            />
+          </div>
+          <BottomInfoBar summary={sizeSummary} />
         </main>
       </div>
     </div>

@@ -45,6 +45,9 @@ interface PerspectiveEditorProps {
   onCornersChange: (corners: PerspectiveCorners) => void;
   onStraighten: () => Promise<void>;
   onReset: () => void;
+  displayMode?: "compact" | "workspace";
+  onDone?: () => void;
+  onCancel?: () => void;
 }
 
 export function PerspectiveEditor({
@@ -54,6 +57,9 @@ export function PerspectiveEditor({
   onCornersChange,
   onStraighten,
   onReset,
+  displayMode = "compact",
+  onDone,
+  onCancel,
 }: PerspectiveEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
@@ -284,10 +290,13 @@ export function PerspectiveEditor({
     setIsProcessing(true);
     try {
       await onStraighten();
+      onDone?.();
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const isWorkspace = displayMode === "workspace";
 
   const containerWidth = containerSize.width;
   const containerHeight = containerSize.height;
@@ -310,11 +319,103 @@ export function PerspectiveEditor({
       }).join(" ")
       : "";
 
+  const zoomControls = (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => handleZoomChange(zoom - ZOOM_STEP)}
+        disabled={zoom <= MIN_ZOOM}
+        className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
+      >
+        −
+      </button>
+      <input
+        type="range"
+        min={MIN_ZOOM}
+        max={MAX_ZOOM}
+        step={0.05}
+        value={zoom}
+        onChange={(event) => handleZoomChange(Number(event.target.value))}
+        className="w-full accent-zinc-900"
+        aria-label="Perspective zoom"
+      />
+      <button
+        type="button"
+        onClick={() => handleZoomChange(zoom + ZOOM_STEP)}
+        disabled={zoom >= MAX_ZOOM}
+        className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
+      >
+        +
+      </button>
+      <button
+        type="button"
+        onClick={resetView}
+        className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300"
+      >
+        Fit
+      </button>
+    </div>
+  );
+
   return (
-    <div className="space-y-3">
+    <div className={isWorkspace ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
+      {isWorkspace ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => handleZoomChange(zoom - ZOOM_STEP)}
+            disabled={zoom <= MIN_ZOOM}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Zoom −
+          </button>
+          <button
+            type="button"
+            onClick={() => handleZoomChange(zoom + ZOOM_STEP)}
+            disabled={zoom >= MAX_ZOOM}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Zoom +
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Fit
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Reset
+          </button>
+          <div className="ml-auto flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleStraighten}
+              disabled={isProcessing}
+              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-40"
+            >
+              {isProcessing ? "Applying…" : "Apply"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div
         ref={containerRef}
-        className="relative aspect-[4/3] overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900"
+        className={`relative overflow-hidden rounded-xl border border-zinc-200 bg-zinc-900 ${
+          isWorkspace ? "min-h-0 flex-1" : "aspect-[4/3]"
+        }`}
         style={{ overscrollBehavior: "contain" }}
         onPointerDown={(event) => {
           if (event.button !== 0 || activeHandle) return;
@@ -391,66 +492,36 @@ export function PerspectiveEditor({
           : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => handleZoomChange(zoom - ZOOM_STEP)}
-          disabled={zoom <= MIN_ZOOM}
-          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
-        >
-          −
-        </button>
-        <input
-          type="range"
-          min={MIN_ZOOM}
-          max={MAX_ZOOM}
-          step={0.05}
-          value={zoom}
-          onChange={(event) => handleZoomChange(Number(event.target.value))}
-          className="w-full accent-zinc-900"
-          aria-label="Perspective zoom"
-        />
-        <button
-          type="button"
-          onClick={() => handleZoomChange(zoom + ZOOM_STEP)}
-          disabled={zoom >= MAX_ZOOM}
-          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300 disabled:opacity-40"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={resetView}
-          className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-300"
-        >
-          Reset zoom
-        </button>
-      </div>
+      {!isWorkspace ? zoomControls : null}
 
-      <p className="text-xs text-zinc-500">
-        Drag corners to the artwork edges. Scroll to zoom at the pointer, use the
-        slider or drag the background to pan for precise placement.
-      </p>
+      {!isWorkspace ? (
+        <p className="text-xs text-zinc-500">
+          Drag corners to the artwork edges. Scroll to zoom at the pointer, use the
+          slider or drag the background to pan for precise placement.
+        </p>
+      ) : null}
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleStraighten}
-          disabled={isProcessing}
-          className="flex-1 rounded-md bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300"
-        >
-          {isProcessing ? "Straightening…" : "Straighten image"}
-        </button>
-        <button
-          type="button"
-          onClick={onReset}
-          className="rounded-md border border-zinc-200 px-3 py-2 text-xs text-zinc-600 transition-colors hover:border-zinc-300 hover:text-zinc-900"
-        >
-          Reset
-        </button>
-      </div>
+      {!isWorkspace ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleStraighten}
+            disabled={isProcessing}
+            className="flex-1 rounded-md bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300"
+          >
+            {isProcessing ? "Straightening…" : "Straighten image"}
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-md border border-zinc-200 px-3 py-2 text-xs text-zinc-600 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+          >
+            Reset
+          </button>
+        </div>
+      ) : null}
 
-      {correctedArtworkUrl ? (
+      {!isWorkspace && correctedArtworkUrl ? (
         <p className="text-xs font-medium text-emerald-600">
           Perspective correction applied.
         </p>

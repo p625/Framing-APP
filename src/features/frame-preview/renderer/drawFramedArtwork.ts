@@ -23,8 +23,6 @@ import {
   type ResolvedRailStrip,
 } from "../utils/frameCalibration";
 
-const RAIL_DEBUG_OVERLAY = true;
-
 const BACKGROUND_COLOR = "#e8e8ec";
 const PLACEHOLDER_ART_COLOR = "#fafafa";
 const PLACEHOLDER_BORDER_COLOR = "#d4d4d8";
@@ -483,108 +481,6 @@ function drawMasterRailTile(
   );
 }
 
-function getRailInnerOuterLabelPoints(
-  targetSide: CalibratedRailDrawPlan["targetSide"],
-  bounds: { x: number; y: number; width: number; height: number },
-): { inner: Point; outer: Point } {
-  const centerX = bounds.x + bounds.width / 2;
-  const centerY = bounds.y + bounds.height / 2;
-
-  switch (targetSide) {
-    case "top":
-      return {
-        outer: { x: centerX, y: bounds.y + 10 },
-        inner: { x: centerX, y: bounds.y + bounds.height - 10 },
-      };
-    case "bottom":
-      return {
-        outer: { x: centerX, y: bounds.y + bounds.height - 10 },
-        inner: { x: centerX, y: bounds.y + 10 },
-      };
-    case "left":
-      return {
-        outer: { x: bounds.x + 10, y: centerY },
-        inner: { x: bounds.x + bounds.width - 10, y: centerY },
-      };
-    case "right":
-      return {
-        outer: { x: bounds.x + bounds.width - 10, y: centerY },
-        inner: { x: bounds.x + 10, y: centerY },
-      };
-    default:
-      return {
-        inner: { x: centerX, y: centerY },
-        outer: { x: centerX, y: centerY },
-      };
-  }
-}
-
-function drawRailDebugOverlay(
-  ctx: CanvasRenderingContext2D,
-  rail: FrameRail,
-  plan: CalibratedRailDrawPlan,
-): void {
-  if (!RAIL_DEBUG_OVERLAY || !plan.unifiedMaster) {
-    return;
-  }
-
-  const bounds = getPolygonBounds(rail.points);
-  const { transform, sourceSide, targetSide } = plan;
-  const centerX = bounds.x + bounds.width / 2;
-  const centerY = bounds.y + bounds.height / 2;
-  const labels = getRailInnerOuterLabelPoints(targetSide, bounds);
-
-  ctx.save();
-  ctx.font = "bold 10px sans-serif";
-  ctx.strokeStyle = "rgba(255, 90, 0, 0.95)";
-  ctx.fillStyle = "rgba(255, 90, 0, 0.95)";
-  ctx.lineWidth = 2;
-
-  if (transform.tileAlong === "horizontal") {
-    ctx.beginPath();
-    ctx.moveTo(bounds.x + 12, centerY);
-    ctx.lineTo(bounds.x + bounds.width - 12, centerY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(bounds.x + bounds.width - 12, centerY);
-    ctx.lineTo(bounds.x + bounds.width - 20, centerY - 5);
-    ctx.lineTo(bounds.x + bounds.width - 20, centerY + 5);
-    ctx.closePath();
-    ctx.fill();
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(centerX, bounds.y + 12);
-    ctx.lineTo(centerX, bounds.y + bounds.height - 12);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(centerX, bounds.y + bounds.height - 12);
-    ctx.lineTo(centerX - 5, bounds.y + bounds.height - 20);
-    ctx.lineTo(centerX + 5, bounds.y + bounds.height - 20);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  ctx.fillText("INNER", labels.inner.x - 16, labels.inner.y);
-  ctx.fillText("OUTER", labels.outer.x - 16, labels.outer.y);
-
-  const info = [
-    `Source = ${sourceSide.toUpperCase()}`,
-    `Target = ${targetSide.toUpperCase()}`,
-    `rotation = ${transform.rotation}°`,
-    `flipX = ${transform.flipX}`,
-    `flipY = ${transform.flipY}`,
-  ];
-
-  ctx.fillStyle = "rgba(20, 20, 20, 0.72)";
-  ctx.fillRect(bounds.x + 4, bounds.y + 4, 132, info.length * 12 + 8);
-  ctx.fillStyle = "rgba(255, 220, 160, 1)";
-  info.forEach((line, index) => {
-    ctx.fillText(line, bounds.x + 8, bounds.y + 16 + index * 12);
-  });
-
-  ctx.restore();
-}
-
 function drawCalibratedTiledRail(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -637,7 +533,6 @@ function drawCalibratedTiledRail(
   }
 
   ctx.restore();
-  drawRailDebugOverlay(ctx, rail, plan);
 }
 
 function drawOrientedCornerPatch(

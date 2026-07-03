@@ -6,6 +6,7 @@ import type {
   RailSourceSide,
   SourceCornerSetting,
 } from "../framing.types";
+import { DEFAULT_FRAME_CORNER_CALIBRATION } from "../framing.types";
 
 export type CornerQuadrant = "top-left" | "top-right" | "bottom-right" | "bottom-left";
 
@@ -279,24 +280,28 @@ export function getRailTransform(
   targetSide: RailSourceSide,
 ): RailTransform {
   const steps = (RAIL_SIDE_INDEX[targetSide] - RAIL_SIDE_INDEX[sourceSide] + 4) % 4;
-  const rotation = (steps * 90) as CornerRotation;
   const tileAlong: "horizontal" | "vertical" =
     targetSide === "top" || targetSide === "bottom" ? "horizontal" : "vertical";
 
+  let rotation: CornerRotation = 0;
   let flipX = false;
   let flipY = false;
 
   if (steps === 2) {
+    // Opposite side: mirror profile across thickness (inner still faces artwork).
     if (sourceSide === "left" || sourceSide === "right") {
       flipX = true;
     } else {
       flipY = true;
     }
-  } else if (steps === 1) {
-    if (sourceSide === "left" || sourceSide === "right") {
-      flipY = true;
-    } else {
-      flipX = true;
+  } else if (steps !== 0) {
+    rotation = (steps * 90) as CornerRotation;
+    if (steps === 1) {
+      if (sourceSide === "left" || sourceSide === "right") {
+        flipY = true;
+      } else {
+        flipX = true;
+      }
     }
   }
 
@@ -484,3 +489,18 @@ export const SOURCE_CORNER_OPTION_LABELS: Record<SourceCornerSetting, string> = 
   "bottom-right": "Bottom-right",
   "bottom-left": "Bottom-left",
 };
+
+export function getCalibrationOrDefault(
+  calibration: FrameCornerCalibration | null,
+): FrameCornerCalibration {
+  if (!calibration) {
+    return DEFAULT_FRAME_CORNER_CALIBRATION;
+  }
+
+  return {
+    ...calibration,
+    sourceCorner: calibration.sourceCorner ?? "auto",
+    railSourceMode: calibration.railSourceMode ?? "separate",
+    railSourceSide: calibration.railSourceSide ?? "top",
+  };
+}
