@@ -16,6 +16,12 @@ export interface CanvasSize {
   heightCm: number;
 }
 
+export interface MatSettings {
+  enabled: boolean;
+  color: string;
+  widthCm: number;
+}
+
 export interface FrameDefinition {
   id: string;
   name: string;
@@ -43,6 +49,7 @@ export interface FramingState {
   customFrameFile: File | null;
   frameWidthCm: number;
   textureScale: number;
+  matSettings: MatSettings;
 }
 
 export interface FramingActions {
@@ -55,6 +62,7 @@ export interface FramingActions {
   setCustomFrameFile: (file: File | null) => void;
   setFrameWidthCm: (width: number) => void;
   setTextureScale: (scale: number) => void;
+  setMatSettings: (settings: Partial<MatSettings>) => void;
 }
 
 export type UseFramingStateReturn = FramingState & FramingActions;
@@ -70,6 +78,14 @@ export interface FramedLayout {
   framePxV: number;
   artX: number;
   artY: number;
+  matEnabled: boolean;
+  matColor: string;
+  matX: number;
+  matY: number;
+  matOuterPxW: number;
+  matOuterPxH: number;
+  matPxH: number;
+  matPxV: number;
 }
 
 export interface Point {
@@ -84,3 +100,16 @@ export const DEFAULT_CROP_SETTINGS: CropSettings = {
 };
 
 export const DEFAULT_TEXTURE_SCALE = TEXTURE_SCALE_PRESETS.medium;
+
+export const DEFAULT_MAT_SETTINGS: MatSettings = {
+  enabled: false,
+  color: "#f5f0e8",
+  widthCm: 5,
+};
+
+export const MAT_COLOR_PRESETS = [
+  { label: "Ivory", value: "#f5f0e8" },
+  { label: "White", value: "#ffffff" },
+  { label: "Black", value: "#1a1a1a" },
+  { label: "Cream", value: "#efe6d4" },
+] as const;

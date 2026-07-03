@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CanvasSize, FrameDefinition } from "../framing.types";
+import type { CanvasSize, FrameDefinition, MatSettings } from "../framing.types";
 import {
   computeRenderDimensions,
   drawFramedArtwork,
@@ -16,6 +16,7 @@ interface PreviewCanvasProps {
   customFrameTextureUrl: string | null;
   frameWidthCm: number;
   textureScale: number;
+  matSettings: MatSettings;
 }
 
 function useLoadedImage(url: string | null | undefined) {
@@ -59,6 +60,7 @@ export function PreviewCanvas({
   customFrameTextureUrl,
   frameWidthCm,
   textureScale,
+  matSettings,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const artworkImage = useLoadedImage(artworkImageUrl);
@@ -68,8 +70,8 @@ export function PreviewCanvas({
   const frameTextureImage = useLoadedImage(frameTextureUrl);
 
   const renderDimensions = useMemo(
-    () => computeRenderDimensions(canvasSize, frameWidthCm),
-    [canvasSize, frameWidthCm],
+    () => computeRenderDimensions(canvasSize, frameWidthCm, matSettings),
+    [canvasSize, frameWidthCm, matSettings],
   );
 
   const frameFallbackColor = frame?.fallbackColor ?? "#71717a";
@@ -92,6 +94,7 @@ export function PreviewCanvas({
       frameTextureImage,
       frameWidthCm,
       textureScale,
+      matSettings,
     });
   }, [
     artworkImage,
@@ -100,6 +103,7 @@ export function PreviewCanvas({
     frameTextureImage,
     frameWidthCm,
     textureScale,
+    matSettings,
   ]);
 
   useEffect(() => {

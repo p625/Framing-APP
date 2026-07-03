@@ -6,6 +6,7 @@ import { ExportPanel } from "./components/ExportPanel";
 import { FrameSelector } from "./components/FrameSelector";
 import { FrameUploader } from "./components/FrameUploader";
 import { FrameWidthInput } from "./components/FrameWidthInput";
+import { MatControls } from "./components/MatControls";
 import { PreviewCanvas } from "./components/PreviewCanvas";
 import { SizeInputs } from "./components/SizeInputs";
 import { useFramingState } from "./hooks/useFramingState";
@@ -63,6 +64,10 @@ export function FramingApp() {
             frameWidthCm={framing.frameWidthCm}
             onFrameWidthChange={framing.setFrameWidthCm}
           />
+          <MatControls
+            matSettings={framing.matSettings}
+            onMatSettingsChange={framing.setMatSettings}
+          />
           <ExportPanel />
         </aside>
 
@@ -74,6 +79,7 @@ export function FramingApp() {
             customFrameTextureUrl={framing.customFrameTextureUrl}
             frameWidthCm={framing.frameWidthCm}
             textureScale={framing.textureScale}
+            matSettings={framing.matSettings}
           />
         </main>
       </div>

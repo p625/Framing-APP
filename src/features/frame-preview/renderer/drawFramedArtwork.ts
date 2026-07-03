@@ -1,4 +1,4 @@
-import type { CanvasSize, FramedLayout, Point } from "../framing.types";
+import type { CanvasSize, FramedLayout, MatSettings, Point } from "../framing.types";
 
 const BACKGROUND_COLOR = "#e8e8ec";
 const PLACEHOLDER_ART_COLOR = "#fafafa";
@@ -16,6 +16,7 @@ export interface DrawFramedArtworkOptions {
   frameTextureImage: HTMLImageElement | null;
   frameWidthCm: number;
   textureScale: number;
+  matSettings: MatSettings;
 }
 
 interface FrameRail {
@@ -23,15 +24,23 @@ interface FrameRail {
   points: Point[];
 }
 
+function getMatWidthCm(matSettings: MatSettings): number {
+  return matSettings.enabled ? matSettings.widthCm : 0;
+}
+
 export function computeFramedLayout(
   canvasWidth: number,
   canvasHeight: number,
   canvasSize: CanvasSize,
   frameWidthCm: number,
+  matSettings: MatSettings,
 ): FramedLayout {
-  const { widthCm: canvasWidthCm, heightCm: canvasHeightCm } = canvasSize;
-  const totalWidthCm = canvasWidthCm + frameWidthCm * 2;
-  const totalHeightCm = canvasHeightCm + frameWidthCm * 2;
+  const { widthCm: artworkWidthCm, heightCm: artworkHeightCm } = canvasSize;
+  const matWidthCm = getMatWidthCm(matSettings);
+  const matOuterWidthCm = artworkWidthCm + matWidthCm * 2;
+  const matOuterHeightCm = artworkHeightCm + matWidthCm * 2;
+  const totalWidthCm = matOuterWidthCm + frameWidthCm * 2;
+  const totalHeightCm = matOuterHeightCm + frameWidthCm * 2;
   const totalAspect = totalWidthCm / totalHeightCm;
 
   const padding = Math.min(canvasWidth, canvasHeight) * 0.08;
@@ -49,13 +58,27 @@ export function computeFramedLayout(
     totalPxW = availH * totalAspect;
   }
 
-  const artworkPxW = totalPxW * (canvasWidthCm / totalWidthCm);
-  const artworkPxH = totalPxH * (canvasHeightCm / totalHeightCm);
-  const framePxH = (artworkPxW * frameWidthCm) / canvasWidthCm;
-  const framePxV = (artworkPxH * frameWidthCm) / canvasHeightCm;
+  const artworkPxW = totalPxW * (artworkWidthCm / totalWidthCm);
+  const artworkPxH = totalPxH * (artworkHeightCm / totalHeightCm);
+  const matOuterPxW = totalPxW * (matOuterWidthCm / totalWidthCm);
+  const matOuterPxH = totalPxH * (matOuterHeightCm / totalHeightCm);
+  const framePxH = (matOuterPxW * frameWidthCm) / matOuterWidthCm;
+  const framePxV = (matOuterPxH * frameWidthCm) / matOuterHeightCm;
 
   const offsetX = (canvasWidth - totalPxW) / 2;
   const offsetY = (canvasHeight - totalPxH) / 2;
+  const matX = offsetX + framePxH;
+  const matY = offsetY + framePxV;
+
+  const matPxH = matSettings.enabled
+    ? (matOuterPxW * matWidthCm) / matOuterWidthCm
+    : 0;
+  const matPxV = matSettings.enabled
+    ? (matOuterPxH * matWidthCm) / matOuterHeightCm
+    : 0;
+
+  const artX = matX + matPxH;
+  const artY = matY + matPxV;
 
   return {
     offsetX,
@@ -66,8 +89,16 @@ export function computeFramedLayout(
     artworkPxH,
     framePxH,
     framePxV,
-    artX: offsetX + framePxH,
-    artY: offsetY + framePxV,
+    artX,
+    artY,
+    matEnabled: matSettings.enabled,
+    matColor: matSettings.color,
+    matX,
+    matY,
+    matOuterPxW,
+    matOuterPxH,
+    matPxH,
+    matPxV,
   };
 }
 
@@ -77,16 +108,16 @@ function getFrameRails(layout: FramedLayout): FrameRail[] {
     offsetY: oy,
     totalPxW,
     totalPxH,
-    artX,
-    artY,
-    artworkPxW,
-    artworkPxH,
+    matX,
+    matY,
+    matOuterPxW,
+    matOuterPxH,
   } = layout;
 
   const outerRight = ox + totalPxW;
   const outerBottom = oy + totalPxH;
-  const innerRight = artX + artworkPxW;
-  const innerBottom = artY + artworkPxH;
+  const innerRight = matX + matOuterPxW;
+  const innerBottom = matY + matOuterPxH;
 
   return [
     {
@@ -94,8 +125,8 @@ function getFrameRails(layout: FramedLayout): FrameRail[] {
       points: [
         { x: ox, y: oy },
         { x: outerRight, y: oy },
-        { x: innerRight, y: artY },
-        { x: artX, y: artY },
+        { x: innerRight, y: matY },
+        { x: matX, y: matY },
       ],
     },
     {
@@ -104,7 +135,7 @@ function getFrameRails(layout: FramedLayout): FrameRail[] {
         { x: outerRight, y: oy },
         { x: outerRight, y: outerBottom },
         { x: innerRight, y: innerBottom },
-        { x: innerRight, y: artY },
+        { x: innerRight, y: matY },
       ],
     },
     {
@@ -112,7 +143,7 @@ function getFrameRails(layout: FramedLayout): FrameRail[] {
       points: [
         { x: outerRight, y: outerBottom },
         { x: ox, y: outerBottom },
-        { x: artX, y: innerBottom },
+        { x: matX, y: innerBottom },
         { x: innerRight, y: innerBottom },
       ],
     },
@@ -121,8 +152,8 @@ function getFrameRails(layout: FramedLayout): FrameRail[] {
       points: [
         { x: ox, y: outerBottom },
         { x: ox, y: oy },
-        { x: artX, y: artY },
-        { x: artX, y: innerBottom },
+        { x: matX, y: matY },
+        { x: matX, y: innerBottom },
       ],
     },
   ];
@@ -285,21 +316,62 @@ function drawCornerSeams(
   ctx.restore();
 }
 
+function drawMat(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+): void {
+  if (!layout.matEnabled) {
+    return;
+  }
+
+  const { matX, matY, matOuterPxW, matOuterPxH, matColor } = layout;
+
+  ctx.fillStyle = matColor;
+  ctx.fillRect(matX, matY, matOuterPxW, matOuterPxH);
+}
+
+function drawPaperShadow(
+  ctx: CanvasRenderingContext2D,
+  layout: FramedLayout,
+): void {
+  if (!layout.matEnabled) {
+    return;
+  }
+
+  const { artX, artY, artworkPxW, artworkPxH } = layout;
+  const lineWidth = Math.max(1, Math.min(artworkPxW, artworkPxH) * 0.006);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.14)";
+  ctx.lineWidth = lineWidth;
+  ctx.shadowColor = "rgba(0, 0, 0, 0.18)";
+  ctx.shadowBlur = lineWidth * 3;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = lineWidth * 1.5;
+  ctx.strokeRect(
+    artX + lineWidth / 2,
+    artY + lineWidth / 2,
+    artworkPxW - lineWidth,
+    artworkPxH - lineWidth,
+  );
+  ctx.restore();
+}
+
 function drawInnerShadow(
   ctx: CanvasRenderingContext2D,
   layout: FramedLayout,
 ): void {
-  const { artX, artY, artworkPxW, artworkPxH, framePxH, framePxV } = layout;
+  const { matX, matY, matOuterPxW, matOuterPxH, framePxH, framePxV } = layout;
   const lineWidth = Math.max(1, Math.min(framePxH, framePxV) * 0.07);
 
   ctx.save();
   ctx.strokeStyle = "rgba(0, 0, 0, 0.22)";
   ctx.lineWidth = lineWidth;
   ctx.strokeRect(
-    artX + lineWidth / 2,
-    artY + lineWidth / 2,
-    artworkPxW - lineWidth,
-    artworkPxH - lineWidth,
+    matX + lineWidth / 2,
+    matY + lineWidth / 2,
+    matOuterPxW - lineWidth,
+    matOuterPxH - lineWidth,
   );
   ctx.restore();
 }
@@ -336,6 +408,7 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     frameTextureImage,
     frameWidthCm,
     textureScale,
+    matSettings,
   } = options;
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -347,6 +420,7 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
     canvasHeight,
     canvasSize,
     frameWidthCm,
+    matSettings,
   );
   const scale = layout.totalPxW / 800;
   const frameFill = createFrameFill(
@@ -359,6 +433,8 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
   drawMiteredFrame(ctx, layout, frameFill, frameFallbackColor, true);
   drawMiteredFrame(ctx, layout, frameFill, frameFallbackColor, false);
   drawCornerSeams(ctx, layout);
+  drawMat(ctx, layout);
+  drawPaperShadow(ctx, layout);
 
   const { artX, artY, artworkPxW, artworkPxH } = layout;
 
@@ -391,10 +467,12 @@ export function drawFramedArtwork(options: DrawFramedArtworkOptions): void {
 export function computeRenderDimensions(
   canvasSize: CanvasSize,
   frameWidthCm: number,
+  matSettings: MatSettings,
   maxDimension = 2400,
 ): { width: number; height: number } {
-  const totalW = canvasSize.widthCm + frameWidthCm * 2;
-  const totalH = canvasSize.heightCm + frameWidthCm * 2;
+  const matWidthCm = getMatWidthCm(matSettings);
+  const totalW = canvasSize.widthCm + matWidthCm * 2 + frameWidthCm * 2;
+  const totalH = canvasSize.heightCm + matWidthCm * 2 + frameWidthCm * 2;
   const aspect = totalW / totalH;
 
   if (aspect >= 1) {

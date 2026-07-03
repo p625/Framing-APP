@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_CROP_SETTINGS,
+  DEFAULT_MAT_SETTINGS,
   DEFAULT_TEXTURE_SCALE,
   type CanvasSize,
   type CropSettings,
+  type MatSettings,
   type UseFramingStateReturn,
 } from "../framing.types";
 import { createCroppedImageUrl } from "../utils/createCroppedImage";
@@ -31,6 +33,7 @@ export function useFramingState(): UseFramingStateReturn {
   const [customFrameFile, setCustomFrameFileState] = useState<File | null>(null);
   const [frameWidthCm, setFrameWidthCm] = useState(3);
   const [textureScale, setTextureScale] = useState<number>(DEFAULT_TEXTURE_SCALE);
+  const [matSettings, setMatSettingsState] = useState<MatSettings>(DEFAULT_MAT_SETTINGS);
 
   const artworkPreviewUrl = useMemo(
     () => (artworkFile ? URL.createObjectURL(artworkFile) : null),
@@ -115,6 +118,10 @@ export function useFramingState(): UseFramingStateReturn {
     }
   }, []);
 
+  const setMatSettings = useCallback((settings: Partial<MatSettings>) => {
+    setMatSettingsState((previous) => ({ ...previous, ...settings }));
+  }, []);
+
   return {
     artworkFile,
     artworkPreviewUrl,
@@ -127,6 +134,7 @@ export function useFramingState(): UseFramingStateReturn {
     customFrameFile,
     frameWidthCm,
     textureScale,
+    matSettings,
     setArtworkFile,
     setCropSettings,
     applyCrop,
@@ -136,5 +144,6 @@ export function useFramingState(): UseFramingStateReturn {
     setCustomFrameFile,
     setFrameWidthCm,
     setTextureScale,
+    setMatSettings,
   };
 }
