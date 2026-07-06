@@ -11,6 +11,7 @@ import {
 } from "../utils/imageLayout";
 import {
   CORNER_QUADRANT_LABELS,
+  deriveCornerCropRect,
   detectSourceCorner,
   getCalibrationOrDefault,
   isHorizontalStripValid,
@@ -35,6 +36,7 @@ import {
 type CalibrationTool =
   | "innerCorner"
   | "outerCorner"
+  | "cornerCrop"
   | "horizontalStrip"
   | "verticalStrip";
 
@@ -48,6 +50,7 @@ type StripDragMode =
 const TOOL_LABELS: Record<CalibrationTool, string> = {
   innerCorner: "Inner corner",
   outerCorner: "Outer corner",
+  cornerCrop: "Full corner area",
   horizontalStrip: "Horizontal rail",
   verticalStrip: "Vertical rail",
 };
@@ -280,8 +283,12 @@ export function FrameCornerCalibrationEditor({
       const deltaX = current.x - startPoint.x;
       const deltaY = current.y - startPoint.y;
       const base = start.rect;
-      const stripKey =
-        activeTool === "horizontalStrip" ? "horizontalStrip" : "verticalStrip";
+      const rectKey =
+        activeTool === "horizontalStrip"
+          ? "horizontalStrip"
+          : activeTool === "verticalStrip"
+            ? "verticalStrip"
+            : "cornerCropRect";
       let next = { ...base };
 
       switch (stripDragMode) {
@@ -326,7 +333,7 @@ export function FrameCornerCalibrationEditor({
 
       onCalibrationChange({
         ...calibration,
-        [stripKey]: clampNormalizedRect(next),
+        [rectKey]: clampNormalizedRect(next),
       });
     };
 
@@ -413,13 +420,37 @@ export function FrameCornerCalibrationEditor({
     };
   };
 
-  const activeStrip =
+  const resolvedCornerCrop: NormalizedRect | null =
+    naturalSize.width > 0
+      ? calibration.cornerCropRect ??
+        (() => {
+          const derived = deriveCornerCropRect(
+            calibration,
+            naturalSize.width,
+            naturalSize.height,
+          );
+          return {
+            x: derived.x / naturalSize.width,
+            y: derived.y / naturalSize.height,
+            width: derived.width / naturalSize.width,
+            height: derived.height / naturalSize.height,
+          };
+        })()
+      : null;
+
+  const activeRect =
     activeTool === "horizontalStrip"
       ? calibration.horizontalStrip
       : activeTool === "verticalStrip"
         ? calibration.verticalStrip
-        : null;
-  const activeStripBox = activeStrip ? renderRect(activeStrip) : null;
+        : activeTool === "cornerCrop"
+          ? resolvedCornerCrop
+          : null;
+  const activeRectBox = activeRect ? renderRect(activeRect) : null;
+  const cornerCropDisplayBox =
+    resolvedCornerCrop && activeTool !== "cornerCrop"
+      ? renderRect(resolvedCornerCrop)
+      : null;
 
   const innerDisplay = renderPoint(calibration.innerCorner);
   const outerDisplay = renderPoint(calibration.outerCorner);
@@ -435,6 +466,12 @@ export function FrameCornerCalibrationEditor({
         Real frame photos usually show one photographed corner. Mark the inner and
         outer corner points, then draw horizontal and vertical rail sample strips
         from that corner.
+      </p>
+
+      <p className="text-xs text-zinc-500">
+        The corner area should include the entire visible width of the frame
+        profile. The inner and outer points only align the corner; the crop
+        rectangle decides how much of the profile is visible.
       </p>
 
       <p className="text-xs text-zinc-500">
@@ -591,48 +628,64 @@ export function FrameCornerCalibrationEditor({
           />
         </div>
 
-        {activeStripBox ? (
+        {cornerCropDisplayBox ? (
           <div
-            className="absolute border-2 border-amber-300 bg-amber-300/15"
+            className="pointer-events-none absolute border-2 border-dashed border-violet-300/80 bg-violet-300/10"
             style={{
-              left: activeStripBox.left,
-              top: activeStripBox.top,
-              width: activeStripBox.width,
-              height: activeStripBox.height,
+              left: cornerCropDisplayBox.left,
+              top: cornerCropDisplayBox.top,
+              width: cornerCropDisplayBox.width,
+              height: cornerCropDisplayBox.height,
+            }}
+          />
+        ) : null}
+
+        {activeRectBox ? (
+          <div
+            className={`absolute border-2 ${
+              activeTool === "cornerCrop"
+                ? "border-violet-300 bg-violet-300/15"
+                : "border-amber-300 bg-amber-300/15"
+            }`}
+            style={{
+              left: activeRectBox.left,
+              top: activeRectBox.top,
+              width: activeRectBox.width,
+              height: activeRectBox.height,
               cursor: "move",
             }}
             onPointerDown={(event) => {
-              if (!activeStrip) return;
+              if (!activeRect) return;
               event.preventDefault();
               event.stopPropagation();
               setStripDragStart({
                 pointerX: event.clientX,
                 pointerY: event.clientY,
-                rect: activeStrip,
+                rect: activeRect,
               });
               setStripDragMode("move");
             }}
           />
         ) : null}
 
-        {activeStripBox
+        {activeRectBox
           ? (
               [
-                { mode: "top-left" as const, left: activeStripBox.left, top: activeStripBox.top },
+                { mode: "top-left" as const, left: activeRectBox.left, top: activeRectBox.top },
                 {
                   mode: "top-right" as const,
-                  left: activeStripBox.left + activeStripBox.width,
-                  top: activeStripBox.top,
+                  left: activeRectBox.left + activeRectBox.width,
+                  top: activeRectBox.top,
                 },
                 {
                   mode: "bottom-right" as const,
-                  left: activeStripBox.left + activeStripBox.width,
-                  top: activeStripBox.top + activeStripBox.height,
+                  left: activeRectBox.left + activeRectBox.width,
+                  top: activeRectBox.top + activeRectBox.height,
                 },
                 {
                   mode: "bottom-left" as const,
-                  left: activeStripBox.left,
-                  top: activeStripBox.top + activeStripBox.height,
+                  left: activeRectBox.left,
+                  top: activeRectBox.top + activeRectBox.height,
                 },
               ] as const
             ).map((handle) => (
@@ -640,16 +693,20 @@ export function FrameCornerCalibrationEditor({
                 key={handle.mode}
                 type="button"
                 aria-label={`Resize ${handle.mode}`}
-                className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-200 bg-zinc-900"
+                className={`absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                  activeTool === "cornerCrop"
+                    ? "border-violet-200 bg-violet-900"
+                    : "border-amber-200 bg-zinc-900"
+                }`}
                 style={{ left: handle.left, top: handle.top }}
                 onPointerDown={(event) => {
-                  if (!activeStrip) return;
+                  if (!activeRect) return;
                   event.preventDefault();
                   event.stopPropagation();
                   setStripDragStart({
                     pointerX: event.clientX,
                     pointerY: event.clientY,
-                    rect: activeStrip,
+                    rect: activeRect,
                   });
                   setStripDragMode(handle.mode);
                 }}

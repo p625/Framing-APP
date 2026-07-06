@@ -95,6 +95,7 @@ export function mapCloudRowToFrameCornerCalibration(
   return getCalibrationOrDefault({
     innerCorner: fromJson.innerCorner ?? base.innerCorner,
     outerCorner: fromJson.outerCorner ?? base.outerCorner,
+    cornerCropRect: fromJson.cornerCropRect ?? base.cornerCropRect,
     horizontalStrip: fromJson.horizontalStrip ?? base.horizontalStrip,
     verticalStrip: fromJson.verticalStrip ?? base.verticalStrip,
     sourceCorner: isSourceCornerSetting(row.source_corner)

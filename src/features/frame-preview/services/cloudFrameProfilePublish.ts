@@ -36,6 +36,7 @@ function extractCalibrationJson(
   return {
     innerCorner: calibration.innerCorner,
     outerCorner: calibration.outerCorner,
+    cornerCropRect: calibration.cornerCropRect,
     horizontalStrip: calibration.horizontalStrip,
     verticalStrip: calibration.verticalStrip,
   };

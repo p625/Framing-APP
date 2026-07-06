@@ -431,47 +431,169 @@ export const RAIL_SOURCE_SIDE_LABELS: Record<RailSourceSide, string> = {
   left: "Left",
 };
 
+const MIN_STRAIGHT_RAIL_PX = 6;
+
+function isExplicitCornerCropValid(rect: NormalizedRect | null | undefined): rect is NormalizedRect {
+  return Boolean(rect && rect.width > 0.01 && rect.height > 0.01);
+}
+
+export function deriveCornerCropRect(
+  calibration: FrameCornerCalibration,
+  imageWidth: number,
+  imageHeight: number,
+  sourceCorner?: CornerQuadrant,
+): { x: number; y: number; width: number; height: number } {
+  if (isExplicitCornerCropValid(calibration.cornerCropRect)) {
+    return denormalizeRect(calibration.cornerCropRect, imageWidth, imageHeight);
+  }
+
+  const innerX = calibration.innerCorner.x * imageWidth;
+  const innerY = calibration.innerCorner.y * imageHeight;
+  const outerX = calibration.outerCorner.x * imageWidth;
+  const outerY = calibration.outerCorner.y * imageHeight;
+  const photoCorner = sourceCorner ?? resolveSourceCorner(calibration).corner;
+  const horizontalStrip = denormalizeRect(
+    calibration.horizontalStrip,
+    imageWidth,
+    imageHeight,
+  );
+  const verticalStrip = denormalizeRect(calibration.verticalStrip, imageWidth, imageHeight);
+
+  const stripThickness = Math.max(
+    horizontalStrip.height,
+    verticalStrip.width,
+    1,
+  );
+  const stripLength = Math.max(
+    horizontalStrip.width,
+    verticalStrip.height,
+    stripThickness,
+  );
+
+  let minX = Math.min(
+    innerX,
+    outerX,
+    horizontalStrip.x,
+    horizontalStrip.x + horizontalStrip.width,
+    verticalStrip.x,
+    verticalStrip.x + verticalStrip.width,
+  );
+  let minY = Math.min(
+    innerY,
+    outerY,
+    horizontalStrip.y,
+    horizontalStrip.y + horizontalStrip.height,
+    verticalStrip.y,
+    verticalStrip.y + verticalStrip.height,
+  );
+  let maxX = Math.max(
+    innerX,
+    outerX,
+    horizontalStrip.x,
+    horizontalStrip.x + horizontalStrip.width,
+    verticalStrip.x,
+    verticalStrip.x + verticalStrip.width,
+  );
+  let maxY = Math.max(
+    innerY,
+    outerY,
+    horizontalStrip.y,
+    horizontalStrip.y + horizontalStrip.height,
+    verticalStrip.y,
+    verticalStrip.y + verticalStrip.height,
+  );
+
+  switch (photoCorner) {
+    case "top-right":
+      minX = Math.min(minX, outerX - stripLength);
+      minY = Math.min(minY, outerY - stripThickness);
+      maxX = Math.max(maxX, outerX + stripThickness);
+      maxY = Math.max(maxY, outerY + stripLength);
+      break;
+    case "bottom-left":
+      minX = Math.min(minX, outerX - stripThickness);
+      minY = Math.min(minY, outerY - stripLength);
+      maxX = Math.max(maxX, outerX + stripLength);
+      maxY = Math.max(maxY, outerY + stripThickness);
+      break;
+    case "bottom-right":
+      minX = Math.min(minX, outerX - stripLength);
+      minY = Math.min(minY, outerY - stripLength);
+      maxX = Math.max(maxX, outerX + stripThickness);
+      maxY = Math.max(maxY, outerY + stripThickness);
+      break;
+    default:
+      minX = Math.min(minX, outerX - stripThickness);
+      minY = Math.min(minY, outerY - stripThickness);
+      maxX = Math.max(maxX, outerX + stripLength);
+      maxY = Math.max(maxY, outerY + stripLength);
+      break;
+  }
+
+  minX = Math.max(0, minX);
+  minY = Math.max(0, minY);
+  maxX = Math.min(imageWidth, maxX);
+  maxY = Math.min(imageHeight, maxY);
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+export interface CalibratedCornerInsets {
+  cornerW: number;
+  cornerH: number;
+}
+
+export function computeCalibratedCornerInsets(
+  calibration: FrameCornerCalibration,
+  imageWidth: number,
+  imageHeight: number,
+  framePxH: number,
+  framePxV: number,
+  totalPxW: number,
+  totalPxH: number,
+  sourceCorner?: CornerQuadrant,
+): CalibratedCornerInsets {
+  const crop = deriveCornerCropRect(
+    calibration,
+    imageWidth,
+    imageHeight,
+    sourceCorner,
+  );
+  const outerX = calibration.outerCorner.x * imageWidth;
+  const outerY = calibration.outerCorner.y * imageHeight;
+  const innerX = calibration.innerCorner.x * imageWidth;
+  const innerY = calibration.innerCorner.y * imageHeight;
+  const srcDist = Math.hypot(innerX - outerX, innerY - outerY) || 1;
+  const dstDist = Math.hypot(framePxH, framePxV) || 1;
+  const alignScale = dstDist / srcDist;
+  const relOx = outerX - crop.x;
+  const relOy = outerY - crop.y;
+  const extentAlongX = Math.max(relOx, crop.width - relOx) * alignScale;
+  const extentAlongY = Math.max(relOy, crop.height - relOy) * alignScale;
+  const desiredW = Math.max(extentAlongX, framePxH);
+  const desiredH = Math.max(extentAlongY, framePxV);
+  const maxCornerW = Math.max(0, (totalPxW - MIN_STRAIGHT_RAIL_PX) / 2);
+  const maxCornerH = Math.max(0, (totalPxH - MIN_STRAIGHT_RAIL_PX) / 2);
+
+  return {
+    cornerW: Math.min(desiredW, maxCornerW),
+    cornerH: Math.min(desiredH, maxCornerH),
+  };
+}
+
+/** @deprecated Use deriveCornerCropRect */
 export function getCalibratedCornerSource(
   calibration: FrameCornerCalibration,
   imageWidth: number,
   imageHeight: number,
   sourceCorner?: CornerQuadrant,
 ): { x: number; y: number; width: number; height: number } {
-  const innerX = calibration.innerCorner.x * imageWidth;
-  const innerY = calibration.innerCorner.y * imageHeight;
-  const outerX = calibration.outerCorner.x * imageWidth;
-  const outerY = calibration.outerCorner.y * imageHeight;
-  const photoCorner =
-    sourceCorner ?? resolveSourceCorner(calibration).corner;
-  const size = Math.max(Math.abs(innerX - outerX), Math.abs(innerY - outerY), 1);
-
-  let x = outerX;
-  let y = outerY;
-
-  switch (photoCorner) {
-    case "top-right":
-      x = outerX - size;
-      break;
-    case "bottom-left":
-      y = outerY - size;
-      break;
-    case "bottom-right":
-      x = outerX - size;
-      y = outerY - size;
-      break;
-    default:
-      break;
-  }
-
-  x = Math.max(0, Math.min(x, imageWidth - size));
-  y = Math.max(0, Math.min(y, imageHeight - size));
-
-  return {
-    x,
-    y,
-    width: size,
-    height: size,
-  };
+  return deriveCornerCropRect(calibration, imageWidth, imageHeight, sourceCorner);
 }
 
 export const SOURCE_CORNER_OPTIONS: SourceCornerSetting[] = [
@@ -499,6 +621,7 @@ export function getCalibrationOrDefault(
 
   return {
     ...calibration,
+    cornerCropRect: calibration.cornerCropRect ?? null,
     sourceCorner: calibration.sourceCorner ?? "auto",
     railSourceMode: calibration.railSourceMode ?? "separate",
     railSourceSide: calibration.railSourceSide ?? "top",

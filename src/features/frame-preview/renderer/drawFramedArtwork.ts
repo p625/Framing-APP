@@ -7,11 +7,11 @@ import type {
   Point,
 } from "../framing.types";
 import {
+  computeCalibratedCornerInsets,
   denormalizeRect,
-  getCalibratedCornerSource,
+  deriveCornerCropRect,
   getCalibratedRailDrawPlan,
   getCornerFlipForFramePosition,
-  getCornerTransform,
   getMasterStripSourceRect,
   getRailFlips,
   resolveSourceCorner,
@@ -489,7 +489,7 @@ function drawTiledRailStrip(
         sourceH,
         flip,
       );
-      x += tileW;
+      x += drawW;
     }
   } else {
     let y = destY;
@@ -510,7 +510,7 @@ function drawTiledRailStrip(
         srcH,
         flip,
       );
-      y += tileH;
+      y += drawH;
     }
   }
 
@@ -589,7 +589,7 @@ function drawCalibratedTiledRail(
         drawW,
         transform,
       );
-      x += tileLength;
+      x += drawW;
     }
   } else {
     let y = segment.y;
@@ -608,39 +608,84 @@ function drawCalibratedTiledRail(
         drawH,
         transform,
       );
-      y += tileLength;
+      y += drawH;
     }
   }
 
   ctx.restore();
 }
 
-function drawOrientedCornerPatch(
+function drawAlignedCornerPatch(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  source: { x: number; y: number; width: number; height: number },
-  transform: CornerTransform,
+  crop: { x: number; y: number; width: number; height: number },
+  srcOuter: { x: number; y: number },
+  srcInner: { x: number; y: number },
+  dstOuter: { x: number; y: number },
+  dstInner: { x: number; y: number },
 ): void {
+  const srcDx = srcInner.x - srcOuter.x;
+  const srcDy = srcInner.y - srcOuter.y;
+  const dstDx = dstInner.x - dstOuter.x;
+  const dstDy = dstInner.y - dstOuter.y;
+  const srcLen = Math.hypot(srcDx, srcDy) || 1;
+  const dstLen = Math.hypot(dstDx, dstDy) || 1;
+  const alignScale = dstLen / srcLen;
+  const alignRotation =
+    Math.atan2(dstDy, dstDx) - Math.atan2(srcDy, srcDx);
+  const relOx = srcOuter.x - crop.x;
+  const relOy = srcOuter.y - crop.y;
+
   ctx.save();
-  ctx.translate(x + width / 2, y + height / 2);
-  ctx.rotate((transform.rotation * Math.PI) / 180);
-  ctx.scale(transform.flipX ? -1 : 1, transform.flipY ? -1 : 1);
+  ctx.translate(dstOuter.x, dstOuter.y);
+  ctx.rotate(alignRotation);
+  ctx.scale(alignScale, alignScale);
+  ctx.translate(-relOx, -relOy);
   ctx.drawImage(
     image,
-    source.x,
-    source.y,
-    source.width,
-    source.height,
-    -width / 2,
-    -height / 2,
-    width,
-    height,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    crop.width,
+    crop.height,
   );
   ctx.restore();
+}
+
+function getFrameCornerAlignmentTargets(
+  corner: CornerQuadrant,
+  ox: number,
+  oy: number,
+  outerRight: number,
+  outerBottom: number,
+  framePxH: number,
+  framePxV: number,
+): { outer: { x: number; y: number }; inner: { x: number; y: number } } {
+  switch (corner) {
+    case "top-right":
+      return {
+        outer: { x: outerRight, y: oy },
+        inner: { x: outerRight - framePxH, y: oy + framePxV },
+      };
+    case "bottom-right":
+      return {
+        outer: { x: outerRight, y: outerBottom },
+        inner: { x: outerRight - framePxH, y: outerBottom - framePxV },
+      };
+    case "bottom-left":
+      return {
+        outer: { x: ox, y: outerBottom },
+        inner: { x: ox + framePxH, y: outerBottom - framePxV },
+      };
+    default:
+      return {
+        outer: { x: ox, y: oy },
+        inner: { x: ox + framePxH, y: oy + framePxV },
+      };
+  }
 }
 
 function drawCalibratedCornerSampleFrame(
@@ -655,8 +700,6 @@ function drawCalibratedCornerSampleFrame(
     layout;
   const outerRight = ox + totalPxW;
   const outerBottom = oy + totalPxH;
-  const insets = computeFrameCornerInsets(layout);
-  const { cornerW, cornerH } = insets;
   const imgW = cornerImage.naturalWidth;
   const imgH = cornerImage.naturalHeight;
   const horizontalStrip = denormalizeRect(
@@ -666,12 +709,30 @@ function drawCalibratedCornerSampleFrame(
   );
   const verticalStrip = denormalizeRect(calibration.verticalStrip, imgW, imgH);
   const { corner: sourceCorner } = resolveSourceCorner(calibration);
-  const cornerSource = getCalibratedCornerSource(
+  const insets = computeCalibratedCornerInsets(
+    calibration,
+    imgW,
+    imgH,
+    framePxH,
+    framePxV,
+    totalPxW,
+    totalPxH,
+    sourceCorner,
+  );
+  const cornerCrop = deriveCornerCropRect(
     calibration,
     imgW,
     imgH,
     sourceCorner,
   );
+  const srcOuter = {
+    x: calibration.outerCorner.x * imgW,
+    y: calibration.outerCorner.y * imgH,
+  };
+  const srcInner = {
+    x: calibration.innerCorner.x * imgW,
+    y: calibration.innerCorner.y * imgH,
+  };
 
   for (const rail of rails) {
     fillRailSolid(ctx, rail, fallbackColor);
@@ -692,24 +753,31 @@ function drawCalibratedCornerSampleFrame(
     drawCalibratedTiledRail(ctx, cornerImage, rail, plan, segment);
   }
 
-  const frameCorners: { corner: CornerQuadrant; x: number; y: number }[] = [
-    { corner: "top-left", x: ox, y: oy },
-    { corner: "top-right", x: outerRight - cornerW, y: oy },
-    { corner: "bottom-right", x: outerRight - cornerW, y: outerBottom - cornerH },
-    { corner: "bottom-left", x: ox, y: outerBottom - cornerH },
+  const frameCorners: CornerQuadrant[] = [
+    "top-left",
+    "top-right",
+    "bottom-right",
+    "bottom-left",
   ];
 
-  for (const patch of frameCorners) {
-    const transform = getCornerTransform(sourceCorner, patch.corner);
-    drawOrientedCornerPatch(
+  for (const corner of frameCorners) {
+    const targets = getFrameCornerAlignmentTargets(
+      corner,
+      ox,
+      oy,
+      outerRight,
+      outerBottom,
+      framePxH,
+      framePxV,
+    );
+    drawAlignedCornerPatch(
       ctx,
       cornerImage,
-      patch.x,
-      patch.y,
-      cornerW,
-      cornerH,
-      cornerSource,
-      transform,
+      cornerCrop,
+      srcOuter,
+      srcInner,
+      targets.outer,
+      targets.inner,
     );
   }
 }

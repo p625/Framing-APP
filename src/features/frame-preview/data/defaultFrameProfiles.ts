@@ -33,6 +33,7 @@ export interface DefaultFrameProfile {
 const RAIL_92_CALIBRATION: FrameCornerCalibration = {
   innerCorner: { x: 0.09, y: 0.09 },
   outerCorner: { x: 0.02, y: 0.02 },
+  cornerCropRect: null,
   horizontalStrip: { x: 0.05, y: 0.03, width: 0.45, height: 0.065 },
   verticalStrip: { x: 0.03, y: 0.05, width: 0.065, height: 0.45 },
   sourceCorner: "top-left",
@@ -43,6 +44,7 @@ const RAIL_92_CALIBRATION: FrameCornerCalibration = {
 const RAIL_72_CALIBRATION: FrameCornerCalibration = {
   innerCorner: { x: 0.07, y: 0.07 },
   outerCorner: { x: 0.02, y: 0.02 },
+  cornerCropRect: null,
   horizontalStrip: { x: 0.05, y: 0.028, width: 0.45, height: 0.052 },
   verticalStrip: { x: 0.028, y: 0.05, width: 0.052, height: 0.45 },
   sourceCorner: "top-left",
@@ -53,6 +55,7 @@ const RAIL_72_CALIBRATION: FrameCornerCalibration = {
 const RAIL_118_CALIBRATION: FrameCornerCalibration = {
   innerCorner: { x: 0.115, y: 0.115 },
   outerCorner: { x: 0.02, y: 0.02 },
+  cornerCropRect: null,
   horizontalStrip: { x: 0.05, y: 0.045, width: 0.45, height: 0.085 },
   verticalStrip: { x: 0.045, y: 0.05, width: 0.085, height: 0.45 },
   sourceCorner: "top-left",

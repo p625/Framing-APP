@@ -140,6 +140,8 @@ export interface NormalizedRect {
 export interface FrameCornerCalibration {
   innerCorner: Point;
   outerCorner: Point;
+  /** Full corner sample area including outer lip, body, and inner lip. When null, derived from points and strips. */
+  cornerCropRect: NormalizedRect | null;
   horizontalStrip: NormalizedRect;
   verticalStrip: NormalizedRect;
   sourceCorner: SourceCornerSetting;
@@ -183,6 +185,7 @@ export const DEFAULT_PERSPECTIVE_CORNERS: PerspectiveCorners = {
 export const DEFAULT_FRAME_CORNER_CALIBRATION: FrameCornerCalibration = {
   innerCorner: { x: 0.58, y: 0.58 },
   outerCorner: { x: 0.08, y: 0.08 },
+  cornerCropRect: null,
   horizontalStrip: { x: 0.12, y: 0.44, width: 0.5, height: 0.08 },
   verticalStrip: { x: 0.44, y: 0.12, width: 0.08, height: 0.5 },
   sourceCorner: "auto",
