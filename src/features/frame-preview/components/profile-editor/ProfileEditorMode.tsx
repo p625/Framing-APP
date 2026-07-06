@@ -5,10 +5,13 @@ import type { UseFramingStateReturn } from "../../framing.types";
 import { resolveProfilePreviewArtworkUrl } from "../../defaults/profilePreview";
 import {
   deleteFrameProfile,
-  loadFrameProfile,
   renameFrameProfile,
   saveFrameProfile,
 } from "../../storage/frameProfileStorage";
+import {
+  isBuiltinFrameProfileId,
+  loadCatalogueFrameProfile,
+} from "../../storage/frameProfileCatalogue";
 import { FrameCornerCalibrationEditor, getCalibrationOrDefault } from "../FrameCornerCalibrationEditor";
 import { PerspectiveEditor } from "../PerspectiveEditor";
 import { PreviewCanvas } from "../PreviewCanvas";
@@ -46,10 +49,12 @@ export function ProfileEditorMode({
   const [samplePrepStep, setSamplePrepStep] = useState<SamplePrepStep>("calibration");
 
   const importFrameProfile = framing.importFrameProfile;
+  const isActiveBuiltin =
+    activeProfileId !== null && isBuiltinFrameProfileId(activeProfileId);
 
   const loadProfileById = useCallback(
     async (id: string) => {
-      const record = await loadFrameProfile(id);
+      const record = await loadCatalogueFrameProfile(id);
       if (!record) {
         setStatus("Profile not found.");
         return;
@@ -57,7 +62,11 @@ export function ProfileEditorMode({
       setProfileName(record.name);
       setActiveProfileId(id);
       importFrameProfile(record.data);
-      setStatus(`Loaded "${record.name}".`);
+      setStatus(
+        record.kind === "builtin"
+          ? `Loaded built-in "${record.name}". Duplicate to save your own copy.`
+          : `Loaded "${record.name}".`,
+      );
     },
     [importFrameProfile],
   );
@@ -68,7 +77,7 @@ export function ProfileEditorMode({
     }
 
     let cancelled = false;
-    void loadFrameProfile(editingProfileId).then((record) => {
+    void loadCatalogueFrameProfile(editingProfileId).then((record) => {
       if (cancelled) {
         return;
       }
@@ -79,7 +88,11 @@ export function ProfileEditorMode({
       setProfileName(record.name);
       setActiveProfileId(editingProfileId);
       importFrameProfile(record.data);
-      setStatus(`Loaded "${record.name}".`);
+      setStatus(
+        record.kind === "builtin"
+          ? `Loaded built-in "${record.name}". Duplicate to save your own copy.`
+          : `Loaded "${record.name}".`,
+      );
     });
 
     return () => {
@@ -102,14 +115,49 @@ export function ProfileEditorMode({
       setStatus("Upload a frame sample first.");
       return;
     }
+
+    if (isActiveBuiltin) {
+      const duplicateName = `${profileName.trim()} (copy)`;
+      const id = await saveFrameProfile(duplicateName, data);
+      setActiveProfileId(id);
+      setProfileName(duplicateName);
+      onCatalogueChanged();
+      setStatus(`Duplicated built-in profile as "${duplicateName}".`);
+      return id;
+    }
+
     const id = await saveFrameProfile(profileName, data);
     setActiveProfileId(id);
     onCatalogueChanged();
     setStatus(`Saved profile "${profileName.trim()}".`);
     return id;
-  }, [framing, onCatalogueChanged, profileName]);
+  }, [framing, isActiveBuiltin, onCatalogueChanged, profileName]);
+
+  const handleDuplicateBuiltin = useCallback(
+    async (id: string) => {
+      const record = await loadCatalogueFrameProfile(id);
+      if (!record || record.kind !== "builtin") {
+        setStatus("Built-in profile not found.");
+        return;
+      }
+      const duplicateName = `${record.name} (copy)`;
+      const data = await framing.exportFrameProfile();
+      const exportData = data ?? record.data;
+      const newId = await saveFrameProfile(duplicateName, exportData);
+      setActiveProfileId(newId);
+      setProfileName(duplicateName);
+      importFrameProfile(exportData);
+      onCatalogueChanged();
+      setStatus(`Duplicated "${record.name}" as "${duplicateName}".`);
+    },
+    [framing, importFrameProfile, onCatalogueChanged],
+  );
 
   const handleRename = async () => {
+    if (isActiveBuiltin) {
+      setStatus("Built-in profiles cannot be renamed. Duplicate to create an editable copy.");
+      return;
+    }
     if (!activeProfileId) {
       await handleSave();
       return;
@@ -120,6 +168,10 @@ export function ProfileEditorMode({
   };
 
   const handleDeleteActive = async () => {
+    if (isActiveBuiltin) {
+      setStatus("Built-in profiles cannot be deleted.");
+      return;
+    }
     if (!activeProfileId) {
       setStatus("Save the profile first, or select one from the list.");
       return;
@@ -250,13 +302,13 @@ export function ProfileEditorMode({
               onClick={() => void handleSave()}
               className="fs-btn fs-btn-primary w-full py-2"
             >
-              Save profile
+              {isActiveBuiltin ? "Duplicate to my profiles" : "Save profile"}
             </button>
             <button
               type="button"
               onClick={() => void handleRename()}
               className="fs-btn fs-btn-secondary w-full py-2"
-              disabled={!activeProfileId && !framing.customFrameFile}
+              disabled={isActiveBuiltin || (!activeProfileId && !framing.customFrameFile)}
             >
               Rename
             </button>
@@ -264,7 +316,7 @@ export function ProfileEditorMode({
               type="button"
               onClick={() => void handleDeleteActive()}
               className="fs-btn fs-btn-danger w-full py-2"
-              disabled={!activeProfileId}
+              disabled={!activeProfileId || isActiveBuiltin}
             >
               Delete profile
             </button>
@@ -276,10 +328,13 @@ export function ProfileEditorMode({
             onSelectProfile={(id) => void loadProfileById(id)}
             onProfileDeleted={handleProfileDeletedFromList}
             onCatalogueChanged={onCatalogueChanged}
+            onDuplicateBuiltin={(id) => void handleDuplicateBuiltin(id)}
           />
 
           {status ? <p className="fs-caption">{status}</p> : null}
-          <p className="text-[11px] text-fs-muted-light">Saved locally in this browser.</p>
+          <p className="text-[11px] text-fs-muted-light">
+            Built-in profiles ship with the app. Your copies are saved locally in this browser.
+          </p>
         </div>
       </aside>
 

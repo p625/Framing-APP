@@ -20,7 +20,7 @@ interface FrameEnvironmentColumnProps {
   onToggleSection: (id: WorkspaceSectionId) => void;
   frameSelection: FrameCatalogueSelection | null;
   onSelectBuiltinFrame: (id: string) => void;
-  onSelectProfileFrame: (id: string) => void;
+  onSelectProfileFrame: (id: string, kind: "builtin-profile" | "profile") => void;
   onManageProfiles: () => void;
   catalogueRefreshKey: number;
   centerView: import("../../ui/appUi.types").CenterView;
@@ -69,8 +69,8 @@ export function FrameEnvironmentColumn({
           selection={frameSelection}
           catalogueRefreshKey={catalogueRefreshKey}
           onSelectBuiltin={onSelectBuiltinFrame}
-          onSelectProfile={(_id, data) => {
-            onSelectProfileFrame(_id);
+          onSelectProfile={(id, data, kind) => {
+            onSelectProfileFrame(id, kind);
             framing.importFrameProfile(data);
           }}
         />

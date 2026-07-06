@@ -50,8 +50,8 @@ export function FramingApp() {
   );
 
   const handleSelectProfileFrame = useCallback(
-    (id: string) => {
-      ui.setFrameSelection({ kind: "profile", id });
+    (id: string, kind: "builtin-profile" | "profile") => {
+      ui.setFrameSelection({ kind, id });
     },
     [ui],
   );
@@ -64,7 +64,11 @@ export function FramingApp() {
 
   const handleProfileDeleted = useCallback(
     (id: string) => {
-      if (ui.frameSelection?.kind === "profile" && ui.frameSelection.id === id) {
+      if (
+        (ui.frameSelection?.kind === "profile" ||
+          ui.frameSelection?.kind === "builtin-profile") &&
+        ui.frameSelection.id === id
+      ) {
         handleSelectBuiltinFrame("oak");
       }
     },

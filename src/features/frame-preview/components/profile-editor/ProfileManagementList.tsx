@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { SavedFrameProfileSummary } from "../../framing.types";
 import {
-  deleteFrameProfile,
-  listSavedFrameProfiles,
-} from "../../storage/frameProfileStorage";
+  isBuiltinFrameProfileId,
+  listCatalogueFrameProfiles,
+  type CatalogueFrameProfileSummary,
+} from "../../storage/frameProfileCatalogue";
+import { deleteFrameProfile } from "../../storage/frameProfileStorage";
 
 interface ProfileManagementListProps {
   activeProfileId: string | null;
@@ -13,6 +14,7 @@ interface ProfileManagementListProps {
   onSelectProfile: (id: string) => void;
   onProfileDeleted: (id: string) => void;
   onCatalogueChanged: () => void;
+  onDuplicateBuiltin?: (id: string) => void;
 }
 
 export function ProfileManagementList({
@@ -21,17 +23,18 @@ export function ProfileManagementList({
   onSelectProfile,
   onProfileDeleted,
   onCatalogueChanged,
+  onDuplicateBuiltin,
 }: ProfileManagementListProps) {
-  const [profiles, setProfiles] = useState<SavedFrameProfileSummary[]>([]);
+  const [profiles, setProfiles] = useState<CatalogueFrameProfileSummary[]>([]);
 
   const reload = useCallback(async () => {
-    const items = await listSavedFrameProfiles();
+    const items = await listCatalogueFrameProfiles();
     setProfiles(items);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    void listSavedFrameProfiles().then((items) => {
+    void listCatalogueFrameProfiles().then((items) => {
       if (!cancelled) {
         setProfiles(items);
       }
@@ -41,7 +44,11 @@ export function ProfileManagementList({
     };
   }, [refreshKey]);
 
-  const handleDelete = async (profile: SavedFrameProfileSummary) => {
+  const handleDelete = async (profile: CatalogueFrameProfileSummary) => {
+    if (profile.kind === "builtin") {
+      return;
+    }
+
     if (
       !window.confirm(
         `Delete saved profile "${profile.name}"? This cannot be undone.`,
@@ -59,17 +66,18 @@ export function ProfileManagementList({
   if (profiles.length === 0) {
     return (
       <p className="fs-caption border-t border-fs-border pt-3">
-        No saved profiles yet. Save to add to your catalogue.
+        No profiles available yet.
       </p>
     );
   }
 
   return (
     <div className="space-y-2 border-t border-fs-border pt-3">
-      <span className="fs-subheading text-xs">Saved profiles</span>
+      <span className="fs-subheading text-xs">Catalogue profiles</span>
       <ul className="space-y-1">
         {profiles.map((profile) => {
           const isActive = activeProfileId === profile.id;
+          const isBuiltin = profile.kind === "builtin";
           return (
             <li
               key={profile.id}
@@ -84,18 +92,33 @@ export function ProfileManagementList({
               >
                 {profile.name}
               </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete(profile)}
-                className="fs-btn fs-btn-danger shrink-0 px-2 py-1"
-                aria-label={`Delete ${profile.name}`}
-              >
-                Delete
-              </button>
+              {isBuiltin ? (
+                <button
+                  type="button"
+                  onClick={() => onDuplicateBuiltin?.(profile.id)}
+                  className="fs-btn fs-btn-secondary shrink-0 px-2 py-1 text-[10px]"
+                >
+                  Duplicate
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(profile)}
+                  className="fs-btn fs-btn-danger shrink-0 px-2 py-1"
+                  aria-label={`Delete ${profile.name}`}
+                >
+                  Delete
+                </button>
+              )}
             </li>
           );
         })}
       </ul>
+      {profiles.some((profile) => isBuiltinFrameProfileId(profile.id)) ? (
+        <p className="text-[10px] text-fs-muted-light">
+          Built-in profiles are read-only. Duplicate one to create an editable copy.
+        </p>
+      ) : null}
     </div>
   );
 }
