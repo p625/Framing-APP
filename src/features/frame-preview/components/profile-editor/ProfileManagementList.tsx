@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   isBuiltinFrameProfileId,
-  listLocalCatalogueFrameProfiles,
+  listEditorFrameProfiles,
   type CatalogueFrameProfileSummary,
 } from "../../storage/frameProfileCatalogue";
 import { deleteFrameProfile } from "../../storage/frameProfileStorage";
@@ -26,17 +26,20 @@ export function ProfileManagementList({
   onDuplicateBuiltin,
 }: ProfileManagementListProps) {
   const [profiles, setProfiles] = useState<CatalogueFrameProfileSummary[]>([]);
+  const [cloudError, setCloudError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const items = await listLocalCatalogueFrameProfiles();
-    setProfiles(items);
+    const result = await listEditorFrameProfiles();
+    setProfiles(result.profiles);
+    setCloudError(result.cloudError);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    void listLocalCatalogueFrameProfiles().then((items) => {
+    void listEditorFrameProfiles().then((result) => {
       if (!cancelled) {
-        setProfiles(items);
+        setProfiles(result.profiles);
+        setCloudError(result.cloudError);
       }
     });
     return () => {
@@ -45,7 +48,7 @@ export function ProfileManagementList({
   }, [refreshKey]);
 
   const handleDelete = async (profile: CatalogueFrameProfileSummary) => {
-    if (profile.kind === "builtin") {
+    if (profile.kind === "builtin" || profile.kind === "cloud") {
       return;
     }
 
@@ -63,7 +66,7 @@ export function ProfileManagementList({
     onProfileDeleted(profile.id);
   };
 
-  if (profiles.length === 0) {
+  if (profiles.length === 0 && !cloudError) {
     return (
       <p className="fs-caption border-t border-fs-border pt-3">
         No profiles available yet.
@@ -74,10 +77,18 @@ export function ProfileManagementList({
   return (
     <div className="space-y-2 border-t border-fs-border pt-3">
       <span className="fs-subheading text-xs">Catalogue profiles</span>
+
+      {cloudError ? (
+        <p className="rounded-lg border border-fs-warning/25 bg-fs-warning-bg px-2 py-1.5 text-[10px] text-fs-warning">
+          Cloud profiles unavailable: {cloudError}
+        </p>
+      ) : null}
+
       <ul className="space-y-1">
         {profiles.map((profile) => {
           const isActive = activeProfileId === profile.id;
           const isBuiltin = profile.kind === "builtin";
+          const isCloud = profile.kind === "cloud";
           return (
             <li
               key={profile.id}
@@ -91,6 +102,11 @@ export function ProfileManagementList({
                 className="min-w-0 flex-1 truncate text-left text-xs font-medium text-fs-primary hover:underline"
               >
                 {profile.name}
+                {isCloud ? (
+                  <span className="ml-1 text-[10px] font-normal text-fs-muted">
+                    {profile.isPublished === false ? "(unpublished)" : "(cloud)"}
+                  </span>
+                ) : null}
               </button>
               {isBuiltin ? (
                 <button
@@ -100,7 +116,7 @@ export function ProfileManagementList({
                 >
                   Duplicate
                 </button>
-              ) : (
+              ) : isCloud ? null : (
                 <button
                   type="button"
                   onClick={() => void handleDelete(profile)}

@@ -11,7 +11,15 @@ import {
 import {
   isBuiltinFrameProfileId,
   loadCatalogueFrameProfile,
+  type CatalogueFrameProfileKind,
 } from "../../storage/frameProfileCatalogue";
+import { FRAME_PROFILE_CATEGORIES } from "../../data/defaultFrameProfiles";
+import { isCloudPublishEnabled } from "@/src/lib/supabase/cloudPublish";
+import {
+  publishCloudFrameProfile,
+  unpublishCloudFrameProfile,
+} from "../../services/cloudFrameProfilePublish";
+import { getCachedCloudFrameProfileRow } from "../../services/cloudFrameProfiles";
 import { FrameCornerCalibrationEditor, getCalibrationOrDefault } from "../FrameCornerCalibrationEditor";
 import { PerspectiveEditor } from "../PerspectiveEditor";
 import { PreviewCanvas } from "../PreviewCanvas";
@@ -44,31 +52,68 @@ export function ProfileEditorMode({
   onCatalogueChanged,
 }: ProfileEditorModeProps) {
   const [profileName, setProfileName] = useState("New frame profile");
+  const [profileCategory, setProfileCategory] = useState<string>(FRAME_PROFILE_CATEGORIES[0]);
   const [status, setStatus] = useState<string | null>(null);
+  const [statusTone, setStatusTone] = useState<"success" | "error" | "info">("info");
   const [activeProfileId, setActiveProfileId] = useState<string | null>(editingProfileId);
+  const [activeProfileKind, setActiveProfileKind] = useState<CatalogueFrameProfileKind | null>(
+    null,
+  );
   const [samplePrepStep, setSamplePrepStep] = useState<SamplePrepStep>("calibration");
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isSavingLocally, setIsSavingLocally] = useState(false);
+
+  const setMessage = useCallback(
+    (message: string, tone: "success" | "error" | "info" = "info") => {
+      setStatus(message);
+      setStatusTone(tone);
+    },
+    [],
+  );
 
   const importFrameProfile = framing.importFrameProfile;
   const isActiveBuiltin =
     activeProfileId !== null && isBuiltinFrameProfileId(activeProfileId);
+  const isActiveCloud = activeProfileKind === "cloud";
+  const cloudPublishEnabled = isCloudPublishEnabled();
 
   const loadProfileById = useCallback(
     async (id: string) => {
       const record = await loadCatalogueFrameProfile(id);
       if (!record) {
-        setStatus("Profile not found.");
+        setMessage("Profile not found.", "error");
         return;
       }
       setProfileName(record.name);
       setActiveProfileId(id);
+      setActiveProfileKind(record.kind);
       importFrameProfile(record.data);
-      setStatus(
-        record.kind === "builtin"
-          ? `Loaded built-in "${record.name}". Duplicate to save your own copy.`
-          : `Loaded "${record.name}".`,
-      );
+
+      if (record.kind === "cloud") {
+        const cached = getCachedCloudFrameProfileRow(id);
+        if (cached?.category) {
+          setProfileCategory(cached.category);
+        }
+        setMessage(
+          record.data
+            ? `Loaded cloud profile "${record.name}". Publish to update it for all users.`
+            : `Loaded cloud profile "${record.name}".`,
+          "info",
+        );
+        return;
+      }
+
+      if (record.kind === "builtin") {
+        setMessage(
+          `Loaded built-in "${record.name}". Duplicate to save your own copy.`,
+          "info",
+        );
+        return;
+      }
+
+      setMessage(`Loaded "${record.name}".`, "info");
     },
-    [importFrameProfile],
+    [importFrameProfile, setMessage],
   );
 
   useEffect(() => {
@@ -82,23 +127,33 @@ export function ProfileEditorMode({
         return;
       }
       if (!record) {
-        setStatus("Profile not found.");
+        setMessage("Profile not found.", "error");
         return;
       }
       setProfileName(record.name);
       setActiveProfileId(editingProfileId);
+      setActiveProfileKind(record.kind);
       importFrameProfile(record.data);
-      setStatus(
+      if (record.kind === "cloud") {
+        const cached = getCachedCloudFrameProfileRow(editingProfileId);
+        if (cached?.category) {
+          setProfileCategory(cached.category);
+        }
+        setMessage(`Loaded cloud profile "${record.name}".`, "info");
+        return;
+      }
+      setMessage(
         record.kind === "builtin"
           ? `Loaded built-in "${record.name}". Duplicate to save your own copy.`
           : `Loaded "${record.name}".`,
+        "info",
       );
     });
 
     return () => {
       cancelled = true;
     };
-  }, [editingProfileId, importFrameProfile]);
+  }, [editingProfileId, importFrameProfile, setMessage]);
 
   const previewArtwork = useMemo(
     () => resolveProfilePreviewArtworkUrl(framing.artworkImageUrl),
@@ -109,35 +164,116 @@ export function ProfileEditorMode({
     Object.entries(TEXTURE_SCALE_PRESETS) as [TextureScalePreset, number][]
   ).find(([, value]) => value === framing.textureScale)?.[0];
 
-  const handleSave = useCallback(async () => {
-    const data = await framing.exportFrameProfile();
-    if (!data) {
-      setStatus("Upload a frame sample first.");
+  const handleSaveLocally = useCallback(async () => {
+    setIsSavingLocally(true);
+    try {
+      const data = await framing.exportFrameProfile();
+      if (!data) {
+        setMessage("Upload a frame sample first.", "error");
+        return;
+      }
+
+      if (isActiveBuiltin) {
+        const duplicateName = `${profileName.trim()} (copy)`;
+        const id = await saveFrameProfile(duplicateName, data);
+        setActiveProfileId(id);
+        setActiveProfileKind("user");
+        setProfileName(duplicateName);
+        onCatalogueChanged();
+        setMessage(`Duplicated built-in profile as "${duplicateName}".`, "success");
+        return id;
+      }
+
+      const id = await saveFrameProfile(profileName, data);
+      setActiveProfileId(id);
+      setActiveProfileKind("user");
+      onCatalogueChanged();
+      setMessage(`Saved locally as "${profileName.trim()}".`, "success");
+      return id;
+    } finally {
+      setIsSavingLocally(false);
+    }
+  }, [framing, isActiveBuiltin, onCatalogueChanged, profileName, setMessage]);
+
+  const handlePublishToCloud = useCallback(async () => {
+    if (!cloudPublishEnabled) {
+      setMessage("Cloud publishing is not configured.", "error");
       return;
     }
 
-    if (isActiveBuiltin) {
-      const duplicateName = `${profileName.trim()} (copy)`;
-      const id = await saveFrameProfile(duplicateName, data);
-      setActiveProfileId(id);
-      setProfileName(duplicateName);
+    setIsPublishing(true);
+    try {
+      const data = await framing.exportFrameProfile();
+      if (!data) {
+        setMessage("Upload and calibrate a frame sample before publishing.", "error");
+        return;
+      }
+
+      const result = await publishCloudFrameProfile({
+        profile: data,
+        name: profileName,
+        category: profileCategory,
+        cloudProfileId: isActiveCloud ? activeProfileId : null,
+      });
+
+      setActiveProfileId(result.id);
+      setActiveProfileKind("cloud");
       onCatalogueChanged();
-      setStatus(`Duplicated built-in profile as "${duplicateName}".`);
-      return id;
+      setMessage(`Published "${profileName.trim()}" to cloud.`, "success");
+      return result.id;
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to publish profile to cloud.",
+        "error",
+      );
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [
+    activeProfileId,
+    cloudPublishEnabled,
+    framing,
+    isActiveCloud,
+    onCatalogueChanged,
+    profileCategory,
+    profileName,
+    setMessage,
+  ]);
+
+  const handleUnpublishFromCloud = useCallback(async () => {
+    if (!isActiveCloud || !activeProfileId) {
+      setMessage("Select a cloud profile to unpublish.", "error");
+      return;
     }
 
-    const id = await saveFrameProfile(profileName, data);
-    setActiveProfileId(id);
-    onCatalogueChanged();
-    setStatus(`Saved profile "${profileName.trim()}".`);
-    return id;
-  }, [framing, isActiveBuiltin, onCatalogueChanged, profileName]);
+    if (
+      !window.confirm(
+        `Unpublish "${profileName}" from the cloud catalogue? Users will no longer see it.`,
+      )
+    ) {
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      await unpublishCloudFrameProfile(activeProfileId);
+      onCatalogueChanged();
+      setMessage(`Unpublished "${profileName}" from cloud.`, "success");
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to unpublish cloud profile.",
+        "error",
+      );
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [activeProfileId, isActiveCloud, onCatalogueChanged, profileName, setMessage]);
 
   const handleDuplicateBuiltin = useCallback(
     async (id: string) => {
       const record = await loadCatalogueFrameProfile(id);
       if (!record || record.kind !== "builtin") {
-        setStatus("Built-in profile not found.");
+        setMessage("Built-in profile not found.", "error");
         return;
       }
       const duplicateName = `${record.name} (copy)`;
@@ -145,35 +281,46 @@ export function ProfileEditorMode({
       const exportData = data ?? record.data;
       const newId = await saveFrameProfile(duplicateName, exportData);
       setActiveProfileId(newId);
+      setActiveProfileKind("user");
       setProfileName(duplicateName);
       importFrameProfile(exportData);
       onCatalogueChanged();
-      setStatus(`Duplicated "${record.name}" as "${duplicateName}".`);
+      setMessage(`Duplicated "${record.name}" as "${duplicateName}".`, "success");
     },
-    [framing, importFrameProfile, onCatalogueChanged],
+    [framing, importFrameProfile, onCatalogueChanged, setMessage],
   );
 
   const handleRename = async () => {
-    if (isActiveBuiltin) {
-      setStatus("Built-in profiles cannot be renamed. Duplicate to create an editable copy.");
+    if (isActiveBuiltin || isActiveCloud) {
+      setMessage(
+        isActiveCloud
+          ? "Cloud profiles are renamed when you publish an update."
+          : "Built-in profiles cannot be renamed. Duplicate to create an editable copy.",
+        "error",
+      );
       return;
     }
     if (!activeProfileId) {
-      await handleSave();
+      await handleSaveLocally();
       return;
     }
     await renameFrameProfile(activeProfileId, profileName);
     onCatalogueChanged();
-    setStatus("Profile renamed.");
+    setMessage("Profile renamed.", "success");
   };
 
   const handleDeleteActive = async () => {
-    if (isActiveBuiltin) {
-      setStatus("Built-in profiles cannot be deleted.");
+    if (isActiveBuiltin || isActiveCloud) {
+      setMessage(
+        isActiveCloud
+          ? "Use Unpublish from cloud to remove a cloud profile from the catalogue."
+          : "Built-in profiles cannot be deleted.",
+        "error",
+      );
       return;
     }
     if (!activeProfileId) {
-      setStatus("Save the profile first, or select one from the list.");
+      setMessage("Save the profile first, or select one from the list.", "error");
       return;
     }
     if (!window.confirm(`Delete profile "${profileName}"? This cannot be undone.`)) {
@@ -186,14 +333,16 @@ export function ProfileEditorMode({
     onCatalogueChanged();
     onProfileDeleted(deletedId);
     setActiveProfileId(null);
+    setActiveProfileKind(null);
     setProfileName("New frame profile");
     framing.setCustomFrameFile(null);
-    setStatus(`Deleted "${deletedName}".`);
+    setMessage(`Deleted "${deletedName}".`, "success");
   };
 
   const handleProfileDeletedFromList = (id: string) => {
     if (activeProfileId === id) {
       setActiveProfileId(null);
+      setActiveProfileKind(null);
       setProfileName("New frame profile");
       framing.setCustomFrameFile(null);
     }
@@ -217,6 +366,24 @@ export function ProfileEditorMode({
               onChange={(event) => setProfileName(event.target.value)}
               className="fs-input text-sm"
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block fs-caption font-medium" htmlFor="profile-category">
+              Category
+            </label>
+            <select
+              id="profile-category"
+              value={profileCategory}
+              onChange={(event) => setProfileCategory(event.target.value)}
+              className="fs-input text-sm"
+            >
+              {FRAME_PROFILE_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
@@ -299,16 +466,53 @@ export function ProfileEditorMode({
           <div className="flex flex-col gap-2 border-t border-fs-border pt-4">
             <button
               type="button"
-              onClick={() => void handleSave()}
+              onClick={() => void handleSaveLocally()}
+              disabled={isSavingLocally || isPublishing}
               className="fs-btn fs-btn-primary w-full py-2"
             >
-              {isActiveBuiltin ? "Duplicate to my profiles" : "Save profile"}
+              {isSavingLocally
+                ? "Saving locally…"
+                : isActiveBuiltin
+                  ? "Duplicate to my profiles"
+                  : "Save locally"}
             </button>
+            {cloudPublishEnabled ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handlePublishToCloud()}
+                  disabled={isPublishing || isSavingLocally || !framing.customFrameFile}
+                  className="fs-btn fs-btn-secondary w-full py-2"
+                >
+                  {isPublishing
+                    ? "Publishing…"
+                    : isActiveCloud
+                      ? "Update cloud profile"
+                      : "Publish to cloud"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleUnpublishFromCloud()}
+                  disabled={!isActiveCloud || isPublishing || isSavingLocally}
+                  className="fs-btn fs-btn-secondary w-full py-2"
+                >
+                  Unpublish from cloud
+                </button>
+              </>
+            ) : (
+              <p className="text-[10px] text-fs-muted-light">
+                Cloud publishing requires Supabase environment variables.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => void handleRename()}
               className="fs-btn fs-btn-secondary w-full py-2"
-              disabled={isActiveBuiltin || (!activeProfileId && !framing.customFrameFile)}
+              disabled={
+                isActiveBuiltin ||
+                isActiveCloud ||
+                (!activeProfileId && !framing.customFrameFile)
+              }
             >
               Rename
             </button>
@@ -316,9 +520,9 @@ export function ProfileEditorMode({
               type="button"
               onClick={() => void handleDeleteActive()}
               className="fs-btn fs-btn-danger w-full py-2"
-              disabled={!activeProfileId || isActiveBuiltin}
+              disabled={!activeProfileId || isActiveBuiltin || isActiveCloud}
             >
-              Delete profile
+              Delete local profile
             </button>
           </div>
 
@@ -331,9 +535,22 @@ export function ProfileEditorMode({
             onDuplicateBuiltin={(id) => void handleDuplicateBuiltin(id)}
           />
 
-          {status ? <p className="fs-caption">{status}</p> : null}
+          {status ? (
+            <p
+              className={`fs-caption ${
+                statusTone === "error"
+                  ? "rounded-lg border border-fs-warning/25 bg-fs-warning-bg px-2 py-1.5 text-fs-warning"
+                  : statusTone === "success"
+                    ? "rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-emerald-800"
+                    : ""
+              }`}
+            >
+              {status}
+            </p>
+          ) : null}
           <p className="text-[11px] text-fs-muted-light">
-            Built-in profiles ship with the app. Your copies are saved locally in this browser.
+            Local copies stay in this browser. Cloud profiles are shared with all users when
+            published.
           </p>
         </div>
       </aside>

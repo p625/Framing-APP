@@ -39,6 +39,7 @@ export interface CloudFrameProfileSummary {
   category: string;
   thumbnailUrl: string;
   isFeatured: boolean;
+  isPublished: boolean;
 }
 
 export interface FetchPublishedCloudProfilesResult {
@@ -134,6 +135,7 @@ function rowToSummary(row: CloudFrameProfileRow): CloudFrameProfileSummary {
     category: row.category,
     thumbnailUrl: row.thumbnail_url,
     isFeatured: row.is_featured,
+    isPublished: row.is_published,
   };
 }
 
@@ -188,20 +190,51 @@ export async function fetchPublishedCloudFrameProfiles(): Promise<FetchPublished
   };
 }
 
+export async function fetchAllCloudFrameProfilesForEditor(): Promise<{
+  profiles: CloudFrameProfileSummary[];
+  error: string | null;
+}> {
+  if (!isSupabaseConfigured()) {
+    return { profiles: [], error: null };
+  }
+
+  const client = getSupabaseClient();
+  if (!client) {
+    return { profiles: [], error: "Cloud catalogue is unavailable (Supabase not configured)." };
+  }
+
+  const { data, error } = await client
+    .from("frame_profiles")
+    .select(FRAME_PROFILE_COLUMNS)
+    .order("is_published", { ascending: false })
+    .order("name", { ascending: true });
+
+  if (error) {
+    return { profiles: [], error: error.message };
+  }
+
+  const rows = (data ?? []) as CloudFrameProfileRow[];
+  return {
+    profiles: cacheRows(rows),
+    error: null,
+  };
+}
+
 export async function loadCloudFrameProfile(
   id: string,
+  options?: { publishedOnly?: boolean },
 ): Promise<{ name: string; data: SerializableFrameProfile } | null> {
+  const publishedOnly = options?.publishedOnly ?? true;
   let row = cloudProfileCache.get(id);
 
   if (!row && isSupabaseConfigured()) {
     const client = getSupabaseClient();
     if (client) {
-      const { data, error } = await client
-        .from("frame_profiles")
-        .select(FRAME_PROFILE_COLUMNS)
-        .eq("id", id)
-        .eq("is_published", true)
-        .maybeSingle();
+      let query = client.from("frame_profiles").select(FRAME_PROFILE_COLUMNS).eq("id", id);
+      if (publishedOnly) {
+        query = query.eq("is_published", true);
+      }
+      const { data, error } = await query.maybeSingle();
 
       if (!error && data) {
         row = data as CloudFrameProfileRow;
@@ -211,6 +244,10 @@ export async function loadCloudFrameProfile(
   }
 
   if (!row) {
+    return null;
+  }
+
+  if (publishedOnly && !row.is_published) {
     return null;
   }
 

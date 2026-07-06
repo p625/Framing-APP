@@ -6,6 +6,7 @@ import {
   type DefaultFrameProfile,
 } from "../data/defaultFrameProfiles";
 import {
+  fetchAllCloudFrameProfilesForEditor,
   loadCloudFrameProfile,
   type CloudFrameProfileSummary,
 } from "../services/cloudFrameProfiles";
@@ -27,6 +28,7 @@ export interface CatalogueFrameProfileSummary {
   thumbnailUrl?: string;
   savedAt?: number;
   isFeatured?: boolean;
+  isPublished?: boolean;
 }
 
 export { isDefaultFrameProfileId as isBuiltinFrameProfileId, getDefaultFrameProfile };
@@ -47,6 +49,7 @@ export function cloudSummaryToCatalogueSummary(
     kind: "cloud",
     thumbnailUrl: profile.thumbnailUrl,
     isFeatured: profile.isFeatured,
+    isPublished: profile.isPublished,
   };
 }
 
@@ -83,7 +86,7 @@ export async function loadCatalogueFrameProfile(
     return { ...userProfile, kind: "user" };
   }
 
-  const cloudProfile = await loadCloudFrameProfile(id);
+  const cloudProfile = await loadCloudFrameProfile(id, { publishedOnly: false });
   if (cloudProfile) {
     return { ...cloudProfile, kind: "cloud" };
   }
@@ -146,6 +149,23 @@ export function mergeCatalogueProfiles(
   const localIds = new Set(localProfiles.map((profile) => profile.id));
   const cloud = cloudProfiles.filter((profile) => !localIds.has(profile.id));
   return [...localProfiles, ...cloud];
+}
+
+export async function listEditorFrameProfiles(): Promise<{
+  profiles: CatalogueFrameProfileSummary[];
+  cloudError: string | null;
+}> {
+  const [localProfiles, cloudResult] = await Promise.all([
+    listLocalCatalogueFrameProfiles(),
+    fetchAllCloudFrameProfilesForEditor(),
+  ]);
+
+  const cloudProfiles = cloudResult.profiles.map(cloudSummaryToCatalogueSummary);
+
+  return {
+    profiles: mergeCatalogueProfiles(localProfiles, cloudProfiles),
+    cloudError: cloudResult.error,
+  };
 }
 
 export async function getCatalogueFrameProfileThumbnailUrl(
