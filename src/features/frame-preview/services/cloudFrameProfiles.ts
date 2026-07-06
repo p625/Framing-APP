@@ -40,6 +40,7 @@ export interface CloudFrameProfileSummary {
   thumbnailUrl: string;
   isFeatured: boolean;
   isPublished: boolean;
+  customerTag: string | null;
 }
 
 export interface FetchPublishedCloudProfilesResult {
@@ -48,6 +49,16 @@ export interface FetchPublishedCloudProfilesResult {
 }
 
 const cloudProfileCache = new Map<string, CloudFrameProfileRow>();
+
+export const CLOUD_PROFILE_DEBUG = false;
+
+export function logCloudProfileDebug(label: string, payload: unknown): void {
+  if (!CLOUD_PROFILE_DEBUG) {
+    return;
+  }
+
+  console.debug(`[cloud-profile] ${label}`, payload);
+}
 
 const FRAME_PROFILE_COLUMNS =
   "id, name, category, description, sample_mode, source_corner, rail_source_mode, rail_source_side, frame_width_cm, texture_scale, fallback_color, calibration_json, sample_image_url, thumbnail_url, is_published, is_featured, customer_tag, created_at, updated_at";
@@ -129,23 +140,47 @@ export function mapCloudRowToSerializable(
   };
 }
 
-function rowToSummary(row: CloudFrameProfileRow): CloudFrameProfileSummary {
+function normalizeCloudFrameProfileRow(row: CloudFrameProfileRow): CloudFrameProfileRow {
+  const sampleImageUrl = row.sample_image_url?.trim() ?? "";
+  const thumbnailUrl = row.thumbnail_url?.trim() || sampleImageUrl;
+  const category = row.category?.trim() || "Cloud";
+
   return {
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    thumbnailUrl: row.thumbnail_url,
-    isFeatured: row.is_featured,
-    isPublished: row.is_published,
+    ...row,
+    name: row.name?.trim() || "Untitled profile",
+    category,
+    sample_image_url: sampleImageUrl,
+    thumbnail_url: thumbnailUrl,
+    is_published: Boolean(row.is_published),
+    is_featured: Boolean(row.is_featured),
+    customer_tag: row.customer_tag?.trim() || null,
+  };
+}
+
+function rowToSummary(row: CloudFrameProfileRow): CloudFrameProfileSummary {
+  const normalized = normalizeCloudFrameProfileRow(row);
+
+  return {
+    id: normalized.id,
+    name: normalized.name,
+    category: normalized.category,
+    thumbnailUrl: normalized.thumbnail_url || normalized.sample_image_url,
+    isFeatured: normalized.is_featured,
+    isPublished: normalized.is_published,
+    customerTag: normalized.customer_tag,
   };
 }
 
 function cacheRows(rows: CloudFrameProfileRow[]): CloudFrameProfileSummary[] {
+  const summaries: CloudFrameProfileSummary[] = [];
+
   for (const row of rows) {
-    cloudProfileCache.set(row.id, row);
+    const normalized = normalizeCloudFrameProfileRow(row);
+    cloudProfileCache.set(normalized.id, normalized);
+    summaries.push(rowToSummary(normalized));
   }
 
-  return rows.map(rowToSummary);
+  return summaries;
 }
 
 export function getCachedCloudFrameProfileRow(
@@ -178,13 +213,26 @@ export async function fetchPublishedCloudFrameProfiles(): Promise<FetchPublished
     .order("name", { ascending: true });
 
   if (error) {
+    logCloudProfileDebug("fetch published error", { message: error.message });
     return {
       profiles: [],
       error: error.message,
     };
   }
 
-  const rows = (data ?? []) as CloudFrameProfileRow[];
+  const rows = ((data ?? []) as CloudFrameProfileRow[]).map(normalizeCloudFrameProfileRow);
+
+  logCloudProfileDebug("fetch published rows", {
+    count: rows.length,
+    profiles: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      is_published: row.is_published,
+      is_featured: row.is_featured,
+      customer_tag: row.customer_tag,
+    })),
+  });
+
   return {
     profiles: cacheRows(rows),
     error: null,
@@ -214,7 +262,7 @@ export async function fetchAllCloudFrameProfilesForEditor(): Promise<{
     return { profiles: [], error: error.message };
   }
 
-  const rows = (data ?? []) as CloudFrameProfileRow[];
+  const rows = ((data ?? []) as CloudFrameProfileRow[]).map(normalizeCloudFrameProfileRow);
   return {
     profiles: cacheRows(rows),
     error: null,
@@ -238,7 +286,7 @@ export async function loadCloudFrameProfile(
       const { data, error } = await query.maybeSingle();
 
       if (!error && data) {
-        row = data as CloudFrameProfileRow;
+        row = normalizeCloudFrameProfileRow(data as CloudFrameProfileRow);
         cloudProfileCache.set(id, row);
       }
     }
@@ -271,4 +319,71 @@ export async function loadCloudFrameProfile(
 
 export function clearCloudFrameProfileCache(): void {
   cloudProfileCache.clear();
+}
+
+export async function refreshPublishedCloudFrameProfiles(): Promise<FetchPublishedCloudProfilesResult> {
+  clearCloudFrameProfileCache();
+  const result = await fetchPublishedCloudFrameProfiles();
+  logCloudProfileDebug("catalogue refetch", {
+    count: result.profiles.length,
+    error: result.error,
+    names: result.profiles.map((profile) => profile.name),
+    ids: result.profiles.map((profile) => profile.id),
+  });
+  return result;
+}
+
+export async function verifyPublishedFrameProfileRow(
+  profileId: string,
+): Promise<CloudFrameProfileRow> {
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error("Supabase client is unavailable.");
+  }
+
+  const { data, error } = await client
+    .from("frame_profiles")
+    .select(FRAME_PROFILE_COLUMNS)
+    .eq("id", profileId)
+    .eq("is_published", true)
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `Published profile row was not found after save (${error?.message ?? "no row returned"}). ` +
+        "Check Supabase RLS: anon must be allowed INSERT/UPDATE on frame_profiles, " +
+        "and SELECT for published rows (or editor read policy).",
+    );
+  }
+
+  const row = normalizeCloudFrameProfileRow(data as CloudFrameProfileRow);
+
+  if (!row.name?.trim()) {
+    throw new Error("Published profile is missing name.");
+  }
+
+  if (!row.sample_image_url?.trim()) {
+    throw new Error("Published profile is missing sample_image_url.");
+  }
+
+  if (!row.thumbnail_url?.trim()) {
+    row.thumbnail_url = row.sample_image_url;
+  }
+
+  if (!isFrameSampleMode(row.sample_mode)) {
+    throw new Error(`Published profile has invalid sample_mode "${row.sample_mode}".`);
+  }
+
+  cloudProfileCache.set(row.id, row);
+  logCloudProfileDebug("verified published row", {
+    id: row.id,
+    name: row.name,
+    is_published: row.is_published,
+    is_featured: row.is_featured,
+    customer_tag: row.customer_tag,
+    sample_image_url: row.sample_image_url,
+    thumbnail_url: row.thumbnail_url,
+  });
+
+  return row;
 }

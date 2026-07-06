@@ -1,7 +1,11 @@
 import { getSupabaseClientForPublish } from "@/src/lib/supabase/cloudPublish";
 import type { SerializableFrameProfile } from "../framing.types";
+import { getCalibrationOrDefault } from "../utils/frameCalibration";
 import {
   clearCloudFrameProfileCache,
+  logCloudProfileDebug,
+  refreshPublishedCloudFrameProfiles,
+  verifyPublishedFrameProfileRow,
   type CloudFrameProfileRow,
 } from "./cloudFrameProfiles";
 
@@ -13,11 +17,14 @@ export interface PublishCloudFrameProfileInput {
   category: string;
   description?: string | null;
   cloudProfileId?: string | null;
+  isFeatured?: boolean;
+  customerTag?: string | null;
 }
 
 export interface PublishCloudFrameProfileResult {
   id: string;
   sampleImageUrl: string;
+  catalogueCount: number;
 }
 
 function sanitizeFileExtension(fileName: string): string {
@@ -32,13 +39,18 @@ function sanitizeFileExtension(fileName: string): string {
 function extractCalibrationJson(
   profile: SerializableFrameProfile,
 ): Record<string, unknown> {
-  const calibration = profile.frameCornerCalibration;
+  const calibration = getCalibrationOrDefault(profile.frameCornerCalibration);
+
   return {
     innerCorner: calibration.innerCorner,
     outerCorner: calibration.outerCorner,
     cornerCropRect: calibration.cornerCropRect,
     horizontalStrip: calibration.horizontalStrip,
     verticalStrip: calibration.verticalStrip,
+    sourceCorner: calibration.sourceCorner,
+    railSourceMode: calibration.railSourceMode,
+    railSourceSide: calibration.railSourceSide,
+    repeatMode: calibration.repeatMode,
   };
 }
 
@@ -47,12 +59,14 @@ function buildFrameProfileRow(
   input: PublishCloudFrameProfileInput,
   sampleImageUrl: string,
 ): Omit<CloudFrameProfileRow, "created_at" | "updated_at"> {
-  const calibration = input.profile.frameCornerCalibration;
+  const calibration = getCalibrationOrDefault(input.profile.frameCornerCalibration);
+  const thumbnailUrl = sampleImageUrl.trim();
+  const customerTag = input.customerTag?.trim() || null;
 
   return {
     id: profileId,
     name: input.name.trim(),
-    category: input.category.trim(),
+    category: input.category.trim() || "Cloud",
     description: input.description?.trim() || null,
     sample_mode: input.profile.frameSampleMode,
     source_corner: calibration.sourceCorner,
@@ -62,21 +76,38 @@ function buildFrameProfileRow(
     texture_scale: input.profile.textureScale,
     fallback_color: input.profile.fallbackColor,
     calibration_json: extractCalibrationJson(input.profile),
-    sample_image_url: sampleImageUrl,
-    thumbnail_url: sampleImageUrl,
+    sample_image_url: thumbnailUrl,
+    thumbnail_url: thumbnailUrl,
     is_published: true,
-    is_featured: false,
-    customer_tag: null,
+    is_featured: input.isFeatured ?? false,
+    customer_tag: customerTag,
   };
+}
+
+function getSampleObjectPath(profileId: string, fileName: string): string {
+  const extension = sanitizeFileExtension(fileName);
+  return `${profileId}/sample.${extension}`;
+}
+
+async function deleteUploadedSampleImage(objectPath: string): Promise<void> {
+  const client = getSupabaseClientForPublish();
+  const { error } = await client.storage
+    .from(FRAME_PROFILE_STORAGE_BUCKET)
+    .remove([objectPath]);
+
+  if (error) {
+    logCloudProfileDebug("storage cleanup failed", { objectPath, error: error.message });
+  }
 }
 
 async function uploadFrameSampleImage(
   profileId: string,
   profile: SerializableFrameProfile,
-): Promise<string> {
+): Promise<{ publicUrl: string; objectPath: string }> {
   const client = getSupabaseClientForPublish();
-  const extension = sanitizeFileExtension(profile.frameImage.name);
-  const objectPath = `${profileId}/sample.${extension}`;
+  const objectPath = getSampleObjectPath(profileId, profile.frameImage.name);
+
+  logCloudProfileDebug("storage upload start", { objectPath, profileId });
 
   const { error: uploadError } = await client.storage
     .from(FRAME_PROFILE_STORAGE_BUCKET)
@@ -95,10 +126,36 @@ async function uploadFrameSampleImage(
     .getPublicUrl(objectPath);
 
   if (!data.publicUrl) {
+    await deleteUploadedSampleImage(objectPath);
     throw new Error("Image upload succeeded but public URL is missing.");
   }
 
-  return data.publicUrl;
+  logCloudProfileDebug("storage upload complete", {
+    objectPath,
+    publicUrl: data.publicUrl,
+  });
+
+  return {
+    publicUrl: data.publicUrl,
+    objectPath,
+  };
+}
+
+async function upsertFrameProfileRow(
+  row: Omit<CloudFrameProfileRow, "created_at" | "updated_at">,
+): Promise<void> {
+  const client = getSupabaseClientForPublish();
+
+  logCloudProfileDebug("upsert payload", row);
+
+  const { error } = await client.from("frame_profiles").upsert(row, { onConflict: "id" });
+
+  if (error) {
+    logCloudProfileDebug("upsert error", { message: error.message, details: error });
+    throw new Error(`Failed to save cloud profile: ${error.message}`);
+  }
+
+  logCloudProfileDebug("upsert complete", { id: row.id });
 }
 
 export async function publishCloudFrameProfile(
@@ -116,26 +173,50 @@ export async function publishCloudFrameProfile(
   }
 
   const profileId = input.cloudProfileId ?? crypto.randomUUID();
-  const sampleImageUrl = await uploadFrameSampleImage(profileId, input.profile);
-  const row = buildFrameProfileRow(profileId, input, sampleImageUrl);
-  const client = getSupabaseClientForPublish();
+  let uploadedObjectPath: string | null = null;
+  let dbSaved = false;
 
-  const { data, error } = await client
-    .from("frame_profiles")
-    .upsert(row, { onConflict: "id" })
-    .select("id, sample_image_url")
-    .single();
+  try {
+    const { publicUrl, objectPath } = await uploadFrameSampleImage(profileId, input.profile);
+    uploadedObjectPath = objectPath;
 
-  if (error) {
-    throw new Error(`Failed to save cloud profile: ${error.message}`);
+    const row = buildFrameProfileRow(profileId, input, publicUrl);
+    await upsertFrameProfileRow(row);
+    dbSaved = true;
+
+    const verified = await verifyPublishedFrameProfileRow(profileId);
+    clearCloudFrameProfileCache();
+
+    const catalogue = await refreshPublishedCloudFrameProfiles();
+    const inCatalogue = catalogue.profiles.some((profile) => profile.id === profileId);
+
+    if (catalogue.error) {
+      throw new Error(
+        `Profile saved but catalogue refresh failed: ${catalogue.error}`,
+      );
+    }
+
+    if (!inCatalogue) {
+      throw new Error(
+        "Profile saved but does not appear in the published catalogue. " +
+          "Confirm is_published=true and that anon SELECT policy allows published rows.",
+      );
+    }
+
+    return {
+      id: verified.id,
+      sampleImageUrl: verified.sample_image_url,
+      catalogueCount: catalogue.profiles.length,
+    };
+  } catch (error) {
+    if (uploadedObjectPath && !dbSaved) {
+      await deleteUploadedSampleImage(uploadedObjectPath);
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error("Failed to publish profile to cloud.");
   }
-
-  clearCloudFrameProfileCache();
-
-  return {
-    id: data.id as string,
-    sampleImageUrl: data.sample_image_url as string,
-  };
 }
 
 export async function unpublishCloudFrameProfile(profileId: string): Promise<void> {
@@ -154,4 +235,5 @@ export async function unpublishCloudFrameProfile(profileId: string): Promise<voi
   }
 
   clearCloudFrameProfileCache();
+  await refreshPublishedCloudFrameProfiles();
 }

@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SAMPLE_FRAMES } from "../../sampleFrames";
 import type { SerializableFrameProfile } from "../../framing.types";
 import {
-  clearCloudFrameProfileCache,
-  fetchPublishedCloudFrameProfiles,
+  refreshPublishedCloudFrameProfiles,
 } from "../../services/cloudFrameProfiles";
 import {
   cloudSummaryToCatalogueSummary,
   getCatalogueFrameProfileThumbnailUrl,
   listLocalCatalogueFrameProfiles,
-  loadCatalogueFrameProfile,
+  loadCatalogueFrameProfileForSummary,
   mergeCatalogueProfiles,
   type CatalogueFrameProfileSummary,
 } from "../../storage/frameProfileCatalogue";
@@ -44,7 +43,14 @@ function catalogueKindFromSummary(
 
 function sourceLabel(profile: CatalogueFrameProfileSummary): string {
   if (profile.kind === "cloud") {
-    return "Cloud";
+    const parts = ["Cloud"];
+    if (profile.category) {
+      parts.push(profile.category);
+    }
+    if (profile.isFeatured) {
+      parts.push("Featured");
+    }
+    return parts.join(" · ");
   }
   if (profile.kind === "builtin") {
     return profile.category ? `Category: ${profile.category}` : "Built-in profile";
@@ -71,13 +77,12 @@ export function FrameCatalogue({
   );
 
   const refreshProfiles = useCallback(async () => {
-    clearCloudFrameProfileCache();
     setCloudLoading(true);
     setCloudError(null);
 
     const [local, cloudResult] = await Promise.all([
       listLocalCatalogueFrameProfiles(),
-      fetchPublishedCloudFrameProfiles(),
+      refreshPublishedCloudFrameProfiles(),
     ]);
 
     setLocalProfiles(local);
@@ -95,7 +100,7 @@ export function FrameCatalogue({
 
       const [local, cloudResult] = await Promise.all([
         listLocalCatalogueFrameProfiles(),
-        fetchPublishedCloudFrameProfiles(),
+        refreshPublishedCloudFrameProfiles(),
       ]);
 
       if (cancelled) {
@@ -155,7 +160,7 @@ export function FrameCatalogue({
   const handleProfileClick = async (profile: CatalogueFrameProfileSummary) => {
     setLoadingProfileId(profile.id);
     try {
-      const record = await loadCatalogueFrameProfile(profile.id);
+      const record = await loadCatalogueFrameProfileForSummary(profile);
       if (!record) {
         return;
       }
@@ -183,7 +188,9 @@ export function FrameCatalogue({
       disabled={loadingProfileId === profile.id}
       className={`fs-card text-left ${
         isSelected(selectedKind, profile.id) ? "fs-card-selected" : ""
-      } ${loadingProfileId === profile.id ? "opacity-70" : ""}`}
+      } ${profile.isFeatured ? "ring-1 ring-fs-gold/60" : ""} ${
+        loadingProfileId === profile.id ? "opacity-70" : ""
+      }`}
     >
       <div className="aspect-[5/3] bg-fs-bg-elevated">
         {thumbnails[profile.id] ? (

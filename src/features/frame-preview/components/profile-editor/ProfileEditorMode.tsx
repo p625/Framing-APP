@@ -53,6 +53,8 @@ export function ProfileEditorMode({
 }: ProfileEditorModeProps) {
   const [profileName, setProfileName] = useState("New frame profile");
   const [profileCategory, setProfileCategory] = useState<string>(FRAME_PROFILE_CATEGORIES[0]);
+  const [profileFeatured, setProfileFeatured] = useState(false);
+  const [customerTag, setCustomerTag] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [statusTone, setStatusTone] = useState<"success" | "error" | "info">("info");
   const [activeProfileId, setActiveProfileId] = useState<string | null>(editingProfileId);
@@ -77,6 +79,17 @@ export function ProfileEditorMode({
   const isActiveCloud = activeProfileKind === "cloud";
   const cloudPublishEnabled = isCloudPublishEnabled();
 
+  const applyCloudProfileMetadata = useCallback((id: string) => {
+    const cached = getCachedCloudFrameProfileRow(id);
+    if (!cached) {
+      return;
+    }
+
+    setProfileCategory(cached.category?.trim() || FRAME_PROFILE_CATEGORIES[0]);
+    setProfileFeatured(Boolean(cached.is_featured));
+    setCustomerTag(cached.customer_tag ?? "");
+  }, []);
+
   const loadProfileById = useCallback(
     async (id: string) => {
       const record = await loadCatalogueFrameProfile(id);
@@ -90,10 +103,7 @@ export function ProfileEditorMode({
       importFrameProfile(record.data);
 
       if (record.kind === "cloud") {
-        const cached = getCachedCloudFrameProfileRow(id);
-        if (cached?.category) {
-          setProfileCategory(cached.category);
-        }
+        applyCloudProfileMetadata(id);
         setMessage(
           record.data
             ? `Loaded cloud profile "${record.name}". Publish to update it for all users.`
@@ -113,7 +123,7 @@ export function ProfileEditorMode({
 
       setMessage(`Loaded "${record.name}".`, "info");
     },
-    [importFrameProfile, setMessage],
+    [applyCloudProfileMetadata, importFrameProfile, setMessage],
   );
 
   useEffect(() => {
@@ -135,10 +145,7 @@ export function ProfileEditorMode({
       setActiveProfileKind(record.kind);
       importFrameProfile(record.data);
       if (record.kind === "cloud") {
-        const cached = getCachedCloudFrameProfileRow(editingProfileId);
-        if (cached?.category) {
-          setProfileCategory(cached.category);
-        }
+        applyCloudProfileMetadata(editingProfileId);
         setMessage(`Loaded cloud profile "${record.name}".`, "info");
         return;
       }
@@ -153,7 +160,7 @@ export function ProfileEditorMode({
     return () => {
       cancelled = true;
     };
-  }, [editingProfileId, importFrameProfile, setMessage]);
+  }, [applyCloudProfileMetadata, editingProfileId, importFrameProfile, setMessage]);
 
   const previewArtwork = useMemo(
     () => resolveProfilePreviewArtworkUrl(framing.artworkImageUrl),
@@ -214,12 +221,17 @@ export function ProfileEditorMode({
         name: profileName,
         category: profileCategory,
         cloudProfileId: isActiveCloud ? activeProfileId : null,
+        isFeatured: profileFeatured,
+        customerTag: customerTag.trim() || null,
       });
 
       setActiveProfileId(result.id);
       setActiveProfileKind("cloud");
       onCatalogueChanged();
-      setMessage(`Published "${profileName.trim()}" to cloud.`, "success");
+      setMessage(
+        `Published "${profileName.trim()}" to cloud (${result.catalogueCount} profiles in catalogue).`,
+        "success",
+      );
       return result.id;
     } catch (error) {
       setMessage(
@@ -232,10 +244,12 @@ export function ProfileEditorMode({
   }, [
     activeProfileId,
     cloudPublishEnabled,
+    customerTag,
     framing,
     isActiveCloud,
     onCatalogueChanged,
     profileCategory,
+    profileFeatured,
     profileName,
     setMessage,
   ]);
@@ -462,6 +476,41 @@ export function ProfileEditorMode({
             value={framing.frameWidthCm}
             onChange={framing.setFrameWidthCm}
           />
+
+          {cloudPublishEnabled ? (
+            <div className="space-y-3 border-t border-fs-border pt-4">
+              <label className="flex items-center gap-2 text-sm text-fs-primary">
+                <input
+                  type="checkbox"
+                  checked={profileFeatured}
+                  onChange={(event) => setProfileFeatured(event.target.checked)}
+                  className="accent-fs-gold"
+                />
+                Featured profile
+              </label>
+              <p className="text-[10px] text-fs-muted-light">
+                Featured profiles are highlighted in the catalogue. Non-featured
+                published profiles remain visible.
+              </p>
+
+              <div>
+                <label className="mb-1 block fs-caption font-medium" htmlFor="customer-tag">
+                  Customer tag
+                </label>
+                <input
+                  id="customer-tag"
+                  value={customerTag}
+                  onChange={(event) => setCustomerTag(event.target.value)}
+                  placeholder="Optional"
+                  className="fs-input text-sm"
+                />
+                <p className="mt-1 text-[10px] text-fs-muted-light">
+                  Optional label for customer-specific catalogues. Leave empty for
+                  all users.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-2 border-t border-fs-border pt-4">
             <button

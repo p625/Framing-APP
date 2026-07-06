@@ -8,6 +8,7 @@ import {
 import {
   fetchAllCloudFrameProfilesForEditor,
   loadCloudFrameProfile,
+  logCloudProfileDebug,
   type CloudFrameProfileSummary,
 } from "../services/cloudFrameProfiles";
 import type { SavedFrameProfileSummary, SerializableFrameProfile } from "../framing.types";
@@ -29,6 +30,7 @@ export interface CatalogueFrameProfileSummary {
   savedAt?: number;
   isFeatured?: boolean;
   isPublished?: boolean;
+  customerTag?: string | null;
 }
 
 export { isDefaultFrameProfileId as isBuiltinFrameProfileId, getDefaultFrameProfile };
@@ -45,11 +47,12 @@ export function cloudSummaryToCatalogueSummary(
   return {
     id: profile.id,
     name: profile.name,
-    category: profile.category,
+    category: profile.category || "Cloud",
     kind: "cloud",
-    thumbnailUrl: profile.thumbnailUrl,
+    thumbnailUrl: profile.thumbnailUrl || undefined,
     isFeatured: profile.isFeatured,
     isPublished: profile.isPublished,
+    customerTag: profile.customerTag,
   };
 }
 
@@ -99,6 +102,27 @@ export async function loadCatalogueFrameProfile(
   return null;
 }
 
+export async function loadCatalogueFrameProfileForSummary(
+  profile: CatalogueFrameProfileSummary,
+): Promise<{
+  name: string;
+  data: SerializableFrameProfile;
+  kind: CatalogueFrameProfileKind;
+} | null> {
+  if (profile.kind === "cloud") {
+    const cloudProfile = await loadCloudFrameProfile(profile.id, { publishedOnly: true });
+    return cloudProfile ? { ...cloudProfile, kind: "cloud" } : null;
+  }
+
+  if (profile.kind === "builtin") {
+    const builtinProfile = await loadBuiltinFrameProfile(profile.id);
+    return builtinProfile ? { ...builtinProfile, kind: "builtin" } : null;
+  }
+
+  const userProfile = await loadFrameProfile(profile.id);
+  return userProfile ? { ...userProfile, kind: "user" } : null;
+}
+
 function builtinSummary(profile: DefaultFrameProfile): CatalogueFrameProfileSummary {
   return {
     id: profile.id,
@@ -146,9 +170,28 @@ export function mergeCatalogueProfiles(
   localProfiles: CatalogueFrameProfileSummary[],
   cloudProfiles: CatalogueFrameProfileSummary[],
 ): CatalogueFrameProfileSummary[] {
-  const localIds = new Set(localProfiles.map((profile) => profile.id));
-  const cloud = cloudProfiles.filter((profile) => !localIds.has(profile.id));
-  return [...localProfiles, ...cloud];
+  const merged = [...localProfiles];
+  const indexById = new Map(merged.map((profile, index) => [profile.id, index]));
+
+  for (const cloudProfile of cloudProfiles) {
+    const existingIndex = indexById.get(cloudProfile.id);
+    if (existingIndex !== undefined) {
+      const localProfile = merged[existingIndex];
+      logCloudProfileDebug("catalogue id collision", {
+        id: cloudProfile.id,
+        localKind: localProfile.kind,
+        localName: localProfile.name,
+        cloudName: cloudProfile.name,
+      });
+      merged[existingIndex] = cloudProfile;
+      continue;
+    }
+
+    indexById.set(cloudProfile.id, merged.length);
+    merged.push(cloudProfile);
+  }
+
+  return merged;
 }
 
 export async function listEditorFrameProfiles(): Promise<{
