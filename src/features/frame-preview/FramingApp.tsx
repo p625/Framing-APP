@@ -50,7 +50,7 @@ export function FramingApp() {
   );
 
   const handleSelectProfileFrame = useCallback(
-    (id: string, kind: "builtin-profile" | "profile") => {
+    (id: string, kind: "builtin-profile" | "cloud-profile" | "profile") => {
       ui.setFrameSelection({ kind, id });
     },
     [ui],
@@ -66,7 +66,8 @@ export function FramingApp() {
     (id: string) => {
       if (
         (ui.frameSelection?.kind === "profile" ||
-          ui.frameSelection?.kind === "builtin-profile") &&
+          ui.frameSelection?.kind === "builtin-profile" ||
+          ui.frameSelection?.kind === "cloud-profile") &&
         ui.frameSelection.id === id
       ) {
         handleSelectBuiltinFrame("oak");

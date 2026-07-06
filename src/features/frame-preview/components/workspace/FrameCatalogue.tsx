@@ -1,15 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SAMPLE_FRAMES } from "../../sampleFrames";
 import type { SerializableFrameProfile } from "../../framing.types";
 import {
+  clearCloudFrameProfileCache,
+  fetchPublishedCloudFrameProfiles,
+} from "../../services/cloudFrameProfiles";
+import {
+  cloudSummaryToCatalogueSummary,
   getCatalogueFrameProfileThumbnailUrl,
-  listCatalogueFrameProfiles,
+  listLocalCatalogueFrameProfiles,
   loadCatalogueFrameProfile,
+  mergeCatalogueProfiles,
   type CatalogueFrameProfileSummary,
 } from "../../storage/frameProfileCatalogue";
 import type { FrameCatalogueSelection } from "../../ui/appUi.types";
+
+type CatalogueProfileKind = "builtin-profile" | "cloud-profile" | "profile";
 
 interface FrameCatalogueProps {
   selection: FrameCatalogueSelection | null;
@@ -18,8 +26,30 @@ interface FrameCatalogueProps {
   onSelectProfile: (
     id: string,
     data: SerializableFrameProfile,
-    kind: "builtin-profile" | "profile",
+    kind: CatalogueProfileKind,
   ) => void;
+}
+
+function catalogueKindFromSummary(
+  kind: CatalogueFrameProfileSummary["kind"],
+): CatalogueProfileKind {
+  if (kind === "builtin") {
+    return "builtin-profile";
+  }
+  if (kind === "cloud") {
+    return "cloud-profile";
+  }
+  return "profile";
+}
+
+function sourceLabel(profile: CatalogueFrameProfileSummary): string {
+  if (profile.kind === "cloud") {
+    return "Cloud";
+  }
+  if (profile.kind === "builtin") {
+    return profile.category ? `Category: ${profile.category}` : "Built-in profile";
+  }
+  return "Your profile";
 }
 
 export function FrameCatalogue({
@@ -28,21 +58,56 @@ export function FrameCatalogue({
   onSelectBuiltin,
   onSelectProfile,
 }: FrameCatalogueProps) {
-  const [profiles, setProfiles] = useState<CatalogueFrameProfileSummary[]>([]);
+  const [localProfiles, setLocalProfiles] = useState<CatalogueFrameProfileSummary[]>([]);
+  const [cloudProfiles, setCloudProfiles] = useState<CatalogueFrameProfileSummary[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(true);
+  const [cloudError, setCloudError] = useState<string | null>(null);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null);
+
+  const profiles = useMemo(
+    () => mergeCatalogueProfiles(localProfiles, cloudProfiles),
+    [cloudProfiles, localProfiles],
+  );
 
   const refreshProfiles = useCallback(async () => {
-    const items = await listCatalogueFrameProfiles();
-    setProfiles(items);
+    clearCloudFrameProfileCache();
+    setCloudLoading(true);
+    setCloudError(null);
+
+    const [local, cloudResult] = await Promise.all([
+      listLocalCatalogueFrameProfiles(),
+      fetchPublishedCloudFrameProfiles(),
+    ]);
+
+    setLocalProfiles(local);
+    setCloudProfiles(cloudResult.profiles.map(cloudSummaryToCatalogueSummary));
+    setCloudError(cloudResult.error);
+    setCloudLoading(false);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    void listCatalogueFrameProfiles().then((items) => {
-      if (!cancelled) {
-        setProfiles(items);
+
+    void (async () => {
+      setCloudLoading(true);
+      setCloudError(null);
+
+      const [local, cloudResult] = await Promise.all([
+        listLocalCatalogueFrameProfiles(),
+        fetchPublishedCloudFrameProfiles(),
+      ]);
+
+      if (cancelled) {
+        return;
       }
-    });
+
+      setLocalProfiles(local);
+      setCloudProfiles(cloudResult.profiles.map(cloudSummaryToCatalogueSummary));
+      setCloudError(cloudResult.error);
+      setCloudLoading(false);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -88,25 +153,73 @@ export function FrameCatalogue({
   }, [profiles]);
 
   const handleProfileClick = async (profile: CatalogueFrameProfileSummary) => {
-    const record = await loadCatalogueFrameProfile(profile.id);
-    if (!record) {
-      return;
+    setLoadingProfileId(profile.id);
+    try {
+      const record = await loadCatalogueFrameProfile(profile.id);
+      if (!record) {
+        return;
+      }
+      onSelectProfile(profile.id, record.data, catalogueKindFromSummary(profile.kind));
+    } finally {
+      setLoadingProfileId(null);
     }
-    onSelectProfile(
-      profile.id,
-      record.data,
-      profile.kind === "builtin" ? "builtin-profile" : "profile",
-    );
   };
 
   const isSelected = (kind: FrameCatalogueSelection["kind"], id: string) =>
     selection?.kind === kind && selection.id === id;
 
   const builtinProfiles = profiles.filter((profile) => profile.kind === "builtin");
+  const cloudCatalogueProfiles = profiles.filter((profile) => profile.kind === "cloud");
   const userProfiles = profiles.filter((profile) => profile.kind === "user");
+
+  const renderProfileCard = (
+    profile: CatalogueFrameProfileSummary,
+    selectedKind: FrameCatalogueSelection["kind"],
+  ) => (
+    <button
+      key={profile.id}
+      type="button"
+      onClick={() => void handleProfileClick(profile)}
+      disabled={loadingProfileId === profile.id}
+      className={`fs-card text-left ${
+        isSelected(selectedKind, profile.id) ? "fs-card-selected" : ""
+      } ${loadingProfileId === profile.id ? "opacity-70" : ""}`}
+    >
+      <div className="aspect-[5/3] bg-fs-bg-elevated">
+        {thumbnails[profile.id] ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumbnails[profile.id]}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : null}
+      </div>
+      <div className="px-2 py-2">
+        <p className="text-xs font-medium text-fs-primary">{profile.name}</p>
+        <p
+          className={`text-[10px] ${
+            profile.kind === "user" ? "text-fs-gold" : "text-fs-muted"
+          }`}
+        >
+          {sourceLabel(profile)}
+        </p>
+      </div>
+    </button>
+  );
 
   return (
     <div className="space-y-3">
+      {cloudLoading ? (
+        <p className="fs-caption text-[11px]">Loading cloud profiles…</p>
+      ) : null}
+
+      {cloudError ? (
+        <p className="rounded-lg border border-fs-warning/25 bg-fs-warning-bg px-2 py-1.5 text-[11px] text-fs-warning">
+          Cloud profiles unavailable: {cloudError}
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-2">
         {SAMPLE_FRAMES.map((frame) => (
           <button
@@ -137,59 +250,15 @@ export function FrameCatalogue({
           </button>
         ))}
 
-        {builtinProfiles.map((profile) => (
-          <button
-            key={profile.id}
-            type="button"
-            onClick={() => void handleProfileClick(profile)}
-            className={`fs-card text-left ${
-              isSelected("builtin-profile", profile.id) ? "fs-card-selected" : ""
-            }`}
-          >
-            <div className="aspect-[5/3] bg-fs-bg-elevated">
-              {thumbnails[profile.id] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={thumbnails[profile.id]}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : null}
-            </div>
-            <div className="px-2 py-2">
-              <p className="text-xs font-medium text-fs-primary">{profile.name}</p>
-              <p className="text-[10px] text-fs-muted">
-                {profile.category ? `Category: ${profile.category}` : "Built-in profile"}
-              </p>
-            </div>
-          </button>
-        ))}
+        {builtinProfiles.map((profile) =>
+          renderProfileCard(profile, "builtin-profile"),
+        )}
 
-        {userProfiles.map((profile) => (
-          <button
-            key={profile.id}
-            type="button"
-            onClick={() => void handleProfileClick(profile)}
-            className={`fs-card text-left ${
-              isSelected("profile", profile.id) ? "fs-card-selected" : ""
-            }`}
-          >
-            <div className="aspect-[5/3] bg-fs-bg-elevated">
-              {thumbnails[profile.id] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={thumbnails[profile.id]}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : null}
-            </div>
-            <div className="px-2 py-2">
-              <p className="text-xs font-medium text-fs-primary">{profile.name}</p>
-              <p className="text-[10px] text-fs-gold">Your profile</p>
-            </div>
-          </button>
-        ))}
+        {cloudCatalogueProfiles.map((profile) =>
+          renderProfileCard(profile, "cloud-profile"),
+        )}
+
+        {userProfiles.map((profile) => renderProfileCard(profile, "profile"))}
       </div>
 
       <button

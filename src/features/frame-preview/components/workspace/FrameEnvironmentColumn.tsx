@@ -20,7 +20,7 @@ interface FrameEnvironmentColumnProps {
   onToggleSection: (id: WorkspaceSectionId) => void;
   frameSelection: FrameCatalogueSelection | null;
   onSelectBuiltinFrame: (id: string) => void;
-  onSelectProfileFrame: (id: string, kind: "builtin-profile" | "profile") => void;
+  onSelectProfileFrame: (id: string, kind: "builtin-profile" | "cloud-profile" | "profile") => void;
   onManageProfiles: () => void;
   catalogueRefreshKey: number;
   centerView: import("../../ui/appUi.types").CenterView;

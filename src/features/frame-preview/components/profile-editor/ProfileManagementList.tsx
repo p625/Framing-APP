@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   isBuiltinFrameProfileId,
-  listCatalogueFrameProfiles,
+  listLocalCatalogueFrameProfiles,
   type CatalogueFrameProfileSummary,
 } from "../../storage/frameProfileCatalogue";
 import { deleteFrameProfile } from "../../storage/frameProfileStorage";
@@ -28,13 +28,13 @@ export function ProfileManagementList({
   const [profiles, setProfiles] = useState<CatalogueFrameProfileSummary[]>([]);
 
   const reload = useCallback(async () => {
-    const items = await listCatalogueFrameProfiles();
+    const items = await listLocalCatalogueFrameProfiles();
     setProfiles(items);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    void listCatalogueFrameProfiles().then((items) => {
+    void listLocalCatalogueFrameProfiles().then((items) => {
       if (!cancelled) {
         setProfiles(items);
       }

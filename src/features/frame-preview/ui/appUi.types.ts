@@ -16,6 +16,7 @@ export type SidebarSectionId = WorkspaceSectionId;
 export type FrameCatalogueSelection =
   | { kind: "builtin"; id: string }
   | { kind: "builtin-profile"; id: string }
+  | { kind: "cloud-profile"; id: string }
   | { kind: "profile"; id: string };
 
 export type ExportMode = "framed" | "environment";
