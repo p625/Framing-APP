@@ -39,6 +39,7 @@ const RAIL_92_CALIBRATION: FrameCornerCalibration = {
   sourceCorner: "top-left",
   railSourceMode: "separate",
   railSourceSide: "top",
+  repeatMode: "crop-final",
 };
 
 const RAIL_72_CALIBRATION: FrameCornerCalibration = {
@@ -50,6 +51,7 @@ const RAIL_72_CALIBRATION: FrameCornerCalibration = {
   sourceCorner: "top-left",
   railSourceMode: "separate",
   railSourceSide: "top",
+  repeatMode: "crop-final",
 };
 
 const RAIL_118_CALIBRATION: FrameCornerCalibration = {
@@ -61,6 +63,7 @@ const RAIL_118_CALIBRATION: FrameCornerCalibration = {
   sourceCorner: "top-left",
   railSourceMode: "separate",
   railSourceSide: "top",
+  repeatMode: "crop-final",
 };
 
 export const DEFAULT_FRAME_PROFILES: DefaultFrameProfile[] = [

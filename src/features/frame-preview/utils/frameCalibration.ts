@@ -398,6 +398,78 @@ export function getMasterStripSourceRect(
   };
 }
 
+export const RAIL_TILE_EPSILON_PX = 0.5;
+
+export const RAIL_TILE_DEBUG = false;
+
+export interface RailTilingPlanInput {
+  targetLengthPx: number;
+  tileLengthPx: number;
+  sourceLengthPx: number;
+}
+
+export interface RailTilingPlan {
+  fullTileCount: number;
+  remainingLengthPx: number;
+  partialSourceLengthPx: number;
+}
+
+export function computeRailTilingPlan({
+  targetLengthPx,
+  tileLengthPx,
+  sourceLengthPx,
+}: RailTilingPlanInput): RailTilingPlan {
+  if (
+    targetLengthPx <= RAIL_TILE_EPSILON_PX ||
+    tileLengthPx <= RAIL_TILE_EPSILON_PX ||
+    sourceLengthPx <= 0
+  ) {
+    return {
+      fullTileCount: 0,
+      remainingLengthPx: 0,
+      partialSourceLengthPx: 0,
+    };
+  }
+
+  const fullTileCount = Math.floor(targetLengthPx / tileLengthPx);
+  const rawRemaining = targetLengthPx - fullTileCount * tileLengthPx;
+  const remainingLengthPx =
+    rawRemaining > RAIL_TILE_EPSILON_PX ? rawRemaining : 0;
+  const partialSourceLengthPx =
+    remainingLengthPx > 0
+      ? sourceLengthPx * (remainingLengthPx / tileLengthPx)
+      : 0;
+
+  return {
+    fullTileCount,
+    remainingLengthPx,
+    partialSourceLengthPx,
+  };
+}
+
+/** Future option for evenly-sized tiles without a cropped final segment. */
+export function computeEvenTileFit(
+  targetLengthPx: number,
+  preferredTileLengthPx: number,
+): { tileCount: number; adjustedTileLengthPx: number } {
+  if (
+    targetLengthPx <= RAIL_TILE_EPSILON_PX ||
+    preferredTileLengthPx <= RAIL_TILE_EPSILON_PX
+  ) {
+    return { tileCount: 0, adjustedTileLengthPx: 0 };
+  }
+
+  const tileCount = Math.max(
+    1,
+    Math.round(targetLengthPx / preferredTileLengthPx),
+  );
+
+  return {
+    tileCount,
+    adjustedTileLengthPx: targetLengthPx / tileCount,
+  };
+}
+
 const RAIL_SIDE_INDEX: Record<RailSourceSide, number> = {
   top: 0,
   right: 1,
@@ -625,5 +697,6 @@ export function getCalibrationOrDefault(
     sourceCorner: calibration.sourceCorner ?? "auto",
     railSourceMode: calibration.railSourceMode ?? "separate",
     railSourceSide: calibration.railSourceSide ?? "top",
+    repeatMode: calibration.repeatMode ?? "crop-final",
   };
 }

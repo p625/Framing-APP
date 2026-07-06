@@ -147,11 +147,15 @@ export interface FrameCornerCalibration {
   sourceCorner: SourceCornerSetting;
   railSourceMode: RailSourceMode;
   railSourceSide: RailSourceSide;
+  /** How rail tiles fill the segment. Default: crop-final (clip last tile, never stretch). */
+  repeatMode?: RailRepeatMode;
 }
 
 export type RailSourceMode = "separate" | "horizontal-all" | "vertical-all";
 
 export type RailSourceSide = "top" | "right" | "bottom" | "left";
+
+export type RailRepeatMode = "crop-final" | "even-fit";
 
 export type SourceCornerSetting =
   | "auto"
@@ -191,6 +195,7 @@ export const DEFAULT_FRAME_CORNER_CALIBRATION: FrameCornerCalibration = {
   sourceCorner: "auto",
   railSourceMode: "separate",
   railSourceSide: "top",
+  repeatMode: "crop-final",
 };
 
 export const MAT_COLOR_PRESETS = [

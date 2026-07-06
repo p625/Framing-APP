@@ -8,18 +8,21 @@ import type {
 } from "../framing.types";
 import {
   computeCalibratedCornerInsets,
+  computeRailTilingPlan,
   denormalizeRect,
   deriveCornerCropRect,
   getCalibratedRailDrawPlan,
   getCornerFlipForFramePosition,
   getMasterStripSourceRect,
   getRailFlips,
+  RAIL_TILE_DEBUG,
   resolveSourceCorner,
   isFrameCornerCalibrationComplete,
   type AxisFlip,
   type CalibratedRailDrawPlan,
   type CornerQuadrant,
   type CornerTransform,
+  type RailTilingPlan,
   type ResolvedRailStrip,
 } from "../utils/frameCalibration";
 
@@ -445,6 +448,26 @@ function drawRailTile(
   ctx.restore();
 }
 
+function logRailTileDebug(
+  side: string,
+  tiling: RailTilingPlan,
+  targetLengthPx: number,
+  tileLengthPx: number,
+): void {
+  if (!RAIL_TILE_DEBUG) {
+    return;
+  }
+
+  console.debug("[rail-tile]", {
+    side,
+    targetLengthPx,
+    tileLengthPx,
+    fullTileCount: tiling.fullTileCount,
+    remainingLengthPx: tiling.remainingLengthPx,
+    partialSourceLengthPx: tiling.partialSourceLengthPx,
+  });
+}
+
 function drawTiledRailStrip(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -471,46 +494,86 @@ function drawTiledRailStrip(
   ctx.clip();
 
   if (axis === "horizontal") {
+    const tiling = computeRailTilingPlan({
+      targetLengthPx: destWidth,
+      tileLengthPx: tileW,
+      sourceLengthPx: sourceW,
+    });
+    logRailTileDebug(`fallback-${axis}`, tiling, destWidth, tileW);
+
     let x = destX;
-    const endX = destX + destWidth;
-    while (x < endX - 1e-6) {
-      const drawW = Math.min(tileW, endX - x);
-      const srcW = drawW / scale;
+    for (let index = 0; index < tiling.fullTileCount; index += 1) {
       drawRailTile(
         ctx,
         image,
         x,
         destY,
-        drawW,
+        tileW,
         tileH,
         sourceX,
         sourceY,
-        srcW,
+        sourceW,
         sourceH,
         flip,
       );
-      x += drawW;
+      x += tileW;
+    }
+
+    if (tiling.remainingLengthPx > 0) {
+      drawRailTile(
+        ctx,
+        image,
+        x,
+        destY,
+        tiling.remainingLengthPx,
+        tileH,
+        sourceX,
+        sourceY,
+        tiling.partialSourceLengthPx,
+        sourceH,
+        flip,
+      );
     }
   } else {
+    const tiling = computeRailTilingPlan({
+      targetLengthPx: destHeight,
+      tileLengthPx: tileH,
+      sourceLengthPx: sourceH,
+    });
+    logRailTileDebug(`fallback-${axis}`, tiling, destHeight, tileH);
+
     let y = destY;
-    const endY = destY + destHeight;
-    while (y < endY - 1e-6) {
-      const drawH = Math.min(tileH, endY - y);
-      const srcH = drawH / scale;
+    for (let index = 0; index < tiling.fullTileCount; index += 1) {
       drawRailTile(
         ctx,
         image,
         destX,
         y,
         tileW,
-        drawH,
+        tileH,
         sourceX,
         sourceY,
         sourceW,
-        srcH,
+        sourceH,
         flip,
       );
-      y += drawH;
+      y += tileH;
+    }
+
+    if (tiling.remainingLengthPx > 0) {
+      drawRailTile(
+        ctx,
+        image,
+        destX,
+        y,
+        tileW,
+        tiling.remainingLengthPx,
+        sourceX,
+        sourceY,
+        sourceW,
+        tiling.partialSourceLengthPx,
+        flip,
+      );
     }
   }
 
@@ -525,11 +588,10 @@ function drawMasterRailTile(
   screenLength: number,
   screenThickness: number,
   master: ResolvedRailStrip,
-  destLengthPx: number,
+  partialSourceLengthPx: number,
   transform: CornerTransform,
 ): void {
-  const srcLength = destLengthPx / master.scale;
-  const source = getMasterStripSourceRect(master, srcLength);
+  const source = getMasterStripSourceRect(master, partialSourceLengthPx);
 
   let drawW = screenLength;
   let drawH = screenThickness;
@@ -564,8 +626,8 @@ function drawCalibratedTiledRail(
     return;
   }
 
-  const { resolved, transform } = plan;
-  const { tileLength, tileThickness } = resolved;
+  const { resolved, transform, targetSide } = plan;
+  const { tileLength, tileThickness, sourceLength } = resolved;
 
   ctx.save();
   ctx.beginPath();
@@ -573,42 +635,84 @@ function drawCalibratedTiledRail(
   ctx.clip();
 
   if (transform.tileAlong === "horizontal") {
+    const targetLengthPx = segment.width;
+    const tiling = computeRailTilingPlan({
+      targetLengthPx,
+      tileLengthPx: tileLength,
+      sourceLengthPx: sourceLength,
+    });
+    logRailTileDebug(targetSide, tiling, targetLengthPx, tileLength);
+
     let x = segment.x;
-    const endX = segment.x + segment.width;
     const centerY = segment.y + segment.height / 2;
-    while (x < endX - 1e-6) {
-      const drawW = Math.min(tileLength, endX - x);
+
+    for (let index = 0; index < tiling.fullTileCount; index += 1) {
       drawMasterRailTile(
         ctx,
         image,
-        x + drawW / 2,
+        x + tileLength / 2,
         centerY,
-        drawW,
+        tileLength,
         tileThickness,
         resolved,
-        drawW,
+        sourceLength,
         transform,
       );
-      x += drawW;
+      x += tileLength;
+    }
+
+    if (tiling.remainingLengthPx > 0) {
+      drawMasterRailTile(
+        ctx,
+        image,
+        x + tiling.remainingLengthPx / 2,
+        centerY,
+        tiling.remainingLengthPx,
+        tileThickness,
+        resolved,
+        tiling.partialSourceLengthPx,
+        transform,
+      );
     }
   } else {
+    const targetLengthPx = segment.height;
+    const tiling = computeRailTilingPlan({
+      targetLengthPx,
+      tileLengthPx: tileLength,
+      sourceLengthPx: sourceLength,
+    });
+    logRailTileDebug(targetSide, tiling, targetLengthPx, tileLength);
+
     let y = segment.y;
-    const endY = segment.y + segment.height;
     const centerX = segment.x + segment.width / 2;
-    while (y < endY - 1e-6) {
-      const drawH = Math.min(tileLength, endY - y);
+
+    for (let index = 0; index < tiling.fullTileCount; index += 1) {
       drawMasterRailTile(
         ctx,
         image,
         centerX,
-        y + drawH / 2,
+        y + tileLength / 2,
         tileThickness,
-        drawH,
+        tileLength,
         resolved,
-        drawH,
+        sourceLength,
         transform,
       );
-      y += drawH;
+      y += tileLength;
+    }
+
+    if (tiling.remainingLengthPx > 0) {
+      drawMasterRailTile(
+        ctx,
+        image,
+        centerX,
+        y + tiling.remainingLengthPx / 2,
+        tileThickness,
+        tiling.remainingLengthPx,
+        resolved,
+        tiling.partialSourceLengthPx,
+        transform,
+      );
     }
   }
 
