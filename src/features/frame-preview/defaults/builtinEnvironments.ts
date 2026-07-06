@@ -1,60 +1,35 @@
 import type { EnvironmentCalibration } from "../framing.types";
+import {
+  BUILTIN_ENVIRONMENTS as BUILTIN_ENVIRONMENT_DATA,
+  getBuiltinEnvironment as getBuiltinEnvironmentData,
+  type BuiltinEnvironment as BuiltinEnvironmentData,
+  type EnvironmentCategory,
+  ENVIRONMENT_CATEGORIES,
+} from "../data/builtInEnvironments";
 
-export interface BuiltinEnvironment {
-  id: string;
-  name: string;
-  thumbnailUrl: string;
-  imageUrl: string;
+export type { EnvironmentCategory };
+export { ENVIRONMENT_CATEGORIES };
+
+/** @deprecated Use defaultCalibration — kept for existing call sites. */
+export interface BuiltinEnvironment extends Omit<BuiltinEnvironmentData, "defaultCalibration"> {
   calibration: EnvironmentCalibration;
 }
 
-export const BUILTIN_ENVIRONMENTS: BuiltinEnvironment[] = [
-  {
-    id: "white-gallery",
-    name: "White gallery wall",
-    thumbnailUrl: "/environments/white-gallery.svg",
-    imageUrl: "/environments/white-gallery.svg",
-    calibration: {
-      wallRect: { x: 0.1, y: 0.1, width: 0.8, height: 0.58 },
-      realWallWidthCm: 300,
-      realWallHeightCm: 220,
-    },
-  },
-  {
-    id: "living-room",
-    name: "Living room",
-    thumbnailUrl: "/environments/living-room.svg",
-    imageUrl: "/environments/living-room.svg",
-    calibration: {
-      wallRect: { x: 0.2, y: 0.08, width: 0.48, height: 0.45 },
-      realWallWidthCm: 220,
-      realWallHeightCm: 140,
-    },
-  },
-  {
-    id: "office-wall",
-    name: "Office wall",
-    thumbnailUrl: "/environments/office-wall.svg",
-    imageUrl: "/environments/office-wall.svg",
-    calibration: {
-      wallRect: { x: 0.08, y: 0.08, width: 0.72, height: 0.52 },
-      realWallWidthCm: 280,
-      realWallHeightCm: 200,
-    },
-  },
-  {
-    id: "dark-wall",
-    name: "Dark wall",
-    thumbnailUrl: "/environments/dark-wall.svg",
-    imageUrl: "/environments/dark-wall.svg",
-    calibration: {
-      wallRect: { x: 0.1, y: 0.1, width: 0.78, height: 0.55 },
-      realWallWidthCm: 260,
-      realWallHeightCm: 190,
-    },
-  },
-];
+function withCalibrationAlias(item: BuiltinEnvironmentData): BuiltinEnvironment {
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    thumbnailUrl: item.thumbnailUrl,
+    imageUrl: item.imageUrl,
+    calibration: item.defaultCalibration,
+  };
+}
+
+export const BUILTIN_ENVIRONMENTS: BuiltinEnvironment[] =
+  BUILTIN_ENVIRONMENT_DATA.map(withCalibrationAlias);
 
 export function getBuiltinEnvironment(id: string): BuiltinEnvironment | undefined {
-  return BUILTIN_ENVIRONMENTS.find((item) => item.id === id);
+  const item = getBuiltinEnvironmentData(id);
+  return item ? withCalibrationAlias(item) : undefined;
 }

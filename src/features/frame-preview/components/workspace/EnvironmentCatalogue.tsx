@@ -193,7 +193,7 @@ export function EnvironmentCatalogue({
             </div>
             <div className="px-2 py-2">
               <p className="text-xs font-medium text-fs-primary">{env.name}</p>
-              <p className="text-[10px] text-fs-muted">Built-in · calibrated</p>
+              <p className="text-[10px] text-fs-muted">Category: {env.category}</p>
             </div>
           </button>
         ))}
